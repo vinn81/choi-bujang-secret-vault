@@ -1,21 +1,19 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deploymentIdentity } from './deployment-identity.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const source = resolve(root, 'data.json');
 const output = resolve(root, 'public', 'data.json');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
-if (config.step !== 1) {
-  throw new Error('1단계 이후에는 공개 data.json 복사를 끝내고 보호된 자료 API로 바꾸세요.');
-}
-const data = JSON.parse(await readFile(source, 'utf8'));
-if (!Array.isArray(data.notes)) {
-  throw new Error('실습용 공개 자료 형식을 확인하세요. 실제 학생 자료를 넣으면 안 됩니다.');
+if (config.step !== 2) {
+  throw new Error('2단계 설정과 서버 자료 API를 확인하세요.');
 }
 await mkdir(resolve(root, 'public'), { recursive: true });
-await copyFile(source, output);
-console.log('실습용 공개 자료를 public/data.json에 복사했습니다.');
+await writeFile(output, `${JSON.stringify({
+  sampleMarker: config.sampleMarker,
+  notes: [],
+}, null, 2)}\n`, 'utf8');
+console.log('공개 public/data.json을 빈 메모 목록으로 유지했습니다.');
 if (!process.argv.includes('--local')) {
   const identity = deploymentIdentity(process.env, config);
   await writeFile(resolve(root, 'public', 'aleph.json'),
