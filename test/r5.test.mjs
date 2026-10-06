@@ -29,10 +29,16 @@ test('build identity uses Vercel Git and deployment metadata', () => {
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
     allowedRoutes: config.allowedRoutes,
+    originalApiUrl: config.originalApiUrl,
   });
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
   assert.throws(() => deploymentIdentity(env, { ...config, allowedRoutes: [] }));
+  assert.throws(() => deploymentIdentity(env, { ...config, originalApiUrl: null }));
+  assert.throws(() => deploymentIdentity(env, {
+    ...config,
+    originalApiUrl: `${config.originalApiUrl}?select=*`,
+  }));
 });
 
 test('fifth-stage checks record direct storage and anonymous API denials', async () => {

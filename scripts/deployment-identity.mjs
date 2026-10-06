@@ -8,6 +8,17 @@ export function deploymentIdentity(env, config) {
   const repo = env.VERCEL_GIT_REPO_SLUG;
   const commit = env.VERCEL_GIT_COMMIT_SHA;
   const host = env.VERCEL_URL;
+  let originalApiUrl;
+  try {
+    const originalApi = new URL(config?.originalApiUrl);
+    if (originalApi.protocol !== 'https:' || originalApi.username || originalApi.password
+        || originalApi.search || originalApi.hash || originalApi.pathname === '/') {
+      throw new TypeError('invalid_original_api_url');
+    }
+    originalApiUrl = originalApi.href;
+  } catch {
+    throw new Error('배포 식별 정보와 현재 방어 단계를 확인할 수 없습니다.');
+  }
   if (env.VERCEL_GIT_PROVIDER !== 'github' || !OWNER.test(owner || '')
       || !REPO.test(repo || '') || repo === '.' || repo === '..'
       || repo.toLowerCase().endsWith('.git') || !SHA.test(commit || '')
@@ -30,5 +41,6 @@ export function deploymentIdentity(env, config) {
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
     allowedRoutes: [...config.allowedRoutes],
+    originalApiUrl,
   };
 }
