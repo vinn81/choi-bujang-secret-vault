@@ -10,7 +10,6 @@ if (config.step !== 2) {
 }
 await mkdir(resolve(root, 'public'), { recursive: true });
 await writeFile(output, `${JSON.stringify({
-  sampleMarker: config.sampleMarker,
   notes: [],
 }, null, 2)}\n`, 'utf8');
 console.log('공개 public/data.json을 빈 메모 목록으로 유지했습니다.');
