@@ -61,15 +61,16 @@ curl.exe --silent --output NUL --write-out 'HTTP %{http_code}' ($deploymentBase 
 
 ## 확인 기록
 
-2026-10-06 2단계 커밋·재배포 전 익명 요청 기준입니다.
+2026-10-06 2단계 변경·재배포 후 익명 요청 기준입니다.
 
-- GitHub 최신 `data.json`: HTTP 200, 메모 문장 4건, `notes` 4건
-- GitHub 최신 `public/data.json`: HTTP 200, 메모 문장 4건, `notes` 4건
-- 현재 Vercel `/`: HTTP 200, 정적 HTML의 메모 문장 0건
-- 현재 Vercel `/data.json`: HTTP 200, 메모 문장 4건, `notes` 4건
-- 현재 Vercel `/api/notes`: HTTP 404, 2단계 함수 미배포
-- 판정: 2단계 변경이 아직 원격에 반영되지 않았으므로 과거 노출은 해소되지 않았으며, 새로운 배포 후 위 절차를 다시 실행해야 합니다.
-- 공개 API 약점: 2단계 배포 후 `/api/notes`가 비로그인 `HTTP 200`을 반환하면 약점이 남은 것으로 기록합니다.
+- GitHub 최신 `data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
+- GitHub 최신 `public/data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
+- 현재 Vercel `/`: HTTP 200, 정적 HTML의 메모 문장 0건, `X-Content-Type-Options: nosniff`
+- 현재 Vercel `/data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
+- 현재 Vercel `/api/notes`: 비로그인 HTTP 200, 가상 메모 4건
+- 현재 Vercel `/aleph.json`: HTTP 200, 2단계·저장소·배포 커밋 정보 확인
+- 판정: 현재 정적 파일과 GitHub 최신 파일에서는 가상 메모 문장이 검색되지 않습니다. 다만 이전 공개 커밋과 이전 배포가 남아 있으므로 과거 노출이 해소됐다고 보고하지 않습니다.
+- 공개 API 약점: `/api/notes`가 로그인 없이 가상 메모 4건을 반환하므로 인증을 추가하기 전까지 누구나 호출할 수 있습니다.
 
 ## 다시 확인하기
 
