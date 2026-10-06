@@ -96,14 +96,15 @@ export function validNoteId(value) {
   return typeof value === 'string' && value === value.trim() && UUID.test(value);
 }
 
-function validRows(data) {
+function validRows(data, expectedOwnerId) {
   return Array.isArray(data) && data.every(note => validNoteId(note?.id)
-    && typeof note.title === 'string' && typeof note.content === 'string');
+    && typeof note.title === 'string' && typeof note.content === 'string'
+    && note.owner_id === expectedOwnerId);
 }
 
 async function listNotes({ login, supabaseUrl, supabaseSecretKey }, response, fetchImpl) {
   const endpoint = notesEndpoint(supabaseUrl);
-  endpoint.searchParams.set('select', 'id,title,content,created_at');
+  endpoint.searchParams.set('select', 'id,owner_id,title,content,created_at');
   endpoint.searchParams.set('owner_id', `eq.${login.userId}`);
   endpoint.searchParams.set('order', 'created_at.asc,title.asc');
   endpoint.searchParams.set('limit', '200');
@@ -114,7 +115,9 @@ async function listNotes({ login, supabaseUrl, supabaseSecretKey }, response, fe
   });
   if (!upstream.ok) return sendJson(response, 500, { error: 'notes_unavailable' });
   const data = await upstream.json();
-  if (!validRows(data)) return sendJson(response, 500, { error: 'notes_unavailable' });
+  if (!validRows(data, login.userId)) {
+    return sendJson(response, 500, { error: 'notes_unavailable' });
+  }
   return sendJson(response, 200, {
     notes: data.map(({ id, title, content }) => ({ id, title, body: content })),
   });
@@ -135,7 +138,7 @@ async function createNote(request, auth, response, fetchImpl) {
   }
   const id = hasId ? value.id : randomUUID();
   const endpoint = notesEndpoint(auth.supabaseUrl);
-  endpoint.searchParams.set('select', 'id');
+  endpoint.searchParams.set('select', 'id,owner_id');
   const upstream = await fetchImpl(endpoint, {
     method: 'POST',
     headers: supabaseHeaders(auth.supabaseSecretKey, {
@@ -153,7 +156,8 @@ async function createNote(request, auth, response, fetchImpl) {
   if (upstream.status === 409) return sendJson(response, 409, { error: 'note_conflict' });
   if (!upstream.ok) return sendJson(response, 500, { error: 'notes_unavailable' });
   const data = await upstream.json();
-  if (!Array.isArray(data) || data.length !== 1 || data[0]?.id !== id) {
+  if (!Array.isArray(data) || data.length !== 1 || data[0]?.id !== id
+      || data[0]?.owner_id !== auth.login.userId) {
     return sendJson(response, 500, { error: 'notes_unavailable' });
   }
   return sendJson(response, 201, { id });

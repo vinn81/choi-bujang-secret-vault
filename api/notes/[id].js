@@ -19,13 +19,14 @@ function noteId(request) {
   }
 }
 
-function validRows(data) {
+function validRows(data, expectedOwnerId) {
   return Array.isArray(data) && data.every(note => validNoteId(note?.id)
-    && typeof note.title === 'string' && typeof note.content === 'string');
+    && typeof note.title === 'string' && typeof note.content === 'string'
+    && note.owner_id === expectedOwnerId);
 }
 
 async function getNote(endpoint, auth, response, fetchImpl) {
-  endpoint.searchParams.set('select', 'id,title,content');
+  endpoint.searchParams.set('select', 'id,owner_id,title,content');
   const upstream = await fetchImpl(endpoint, {
     method: 'GET',
     headers: supabaseHeaders(auth.supabaseSecretKey),
@@ -33,7 +34,9 @@ async function getNote(endpoint, auth, response, fetchImpl) {
   });
   if (!upstream.ok) return sendJson(response, 500, { error: 'notes_unavailable' });
   const data = await upstream.json();
-  if (!validRows(data)) return sendJson(response, 500, { error: 'notes_unavailable' });
+  if (!validRows(data, auth.login.userId)) {
+    return sendJson(response, 500, { error: 'notes_unavailable' });
+  }
   if (data.length === 0) return sendJson(response, 404, { error: 'note_not_found' });
   if (data.length !== 1) return sendJson(response, 500, { error: 'notes_unavailable' });
   const [{ id, title, content }] = data;
@@ -47,9 +50,13 @@ async function updateNote(request, endpoint, auth, response, fetchImpl) {
   } catch {
     return sendJson(response, 400, { error: 'invalid_note' });
   }
+  const keys = Object.keys(value ?? {});
+  if (keys.length !== 2 || !Object.hasOwn(value, 'title') || !Object.hasOwn(value, 'body')) {
+    return sendJson(response, 400, { error: 'invalid_note' });
+  }
   const fields = noteFields(value);
   if (!fields) return sendJson(response, 400, { error: 'invalid_note' });
-  endpoint.searchParams.set('select', 'id,title,content');
+  endpoint.searchParams.set('select', 'id,owner_id,title,content');
   const upstream = await fetchImpl(endpoint, {
     method: 'PATCH',
     headers: supabaseHeaders(auth.supabaseSecretKey, {
@@ -61,7 +68,9 @@ async function updateNote(request, endpoint, auth, response, fetchImpl) {
   });
   if (!upstream.ok) return sendJson(response, 500, { error: 'notes_unavailable' });
   const data = await upstream.json();
-  if (!validRows(data)) return sendJson(response, 500, { error: 'notes_unavailable' });
+  if (!validRows(data, auth.login.userId)) {
+    return sendJson(response, 500, { error: 'notes_unavailable' });
+  }
   if (data.length === 0) return sendJson(response, 404, { error: 'note_not_found' });
   if (data.length !== 1) return sendJson(response, 500, { error: 'notes_unavailable' });
   const [{ id, title, content }] = data;
@@ -69,7 +78,7 @@ async function updateNote(request, endpoint, auth, response, fetchImpl) {
 }
 
 async function deleteNote(endpoint, auth, response, fetchImpl) {
-  endpoint.searchParams.set('select', 'id');
+  endpoint.searchParams.set('select', 'id,owner_id');
   const upstream = await fetchImpl(endpoint, {
     method: 'DELETE',
     headers: supabaseHeaders(auth.supabaseSecretKey, { Prefer: 'return=representation' }),
@@ -77,7 +86,8 @@ async function deleteNote(endpoint, auth, response, fetchImpl) {
   });
   if (!upstream.ok) return sendJson(response, 500, { error: 'notes_unavailable' });
   const data = await upstream.json();
-  if (!Array.isArray(data) || data.some(note => !validNoteId(note?.id))) {
+  if (!Array.isArray(data) || data.some(note => !validNoteId(note?.id)
+      || note.owner_id !== auth.login.userId)) {
     return sendJson(response, 500, { error: 'notes_unavailable' });
   }
   if (data.length === 0) return sendJson(response, 404, { error: 'note_not_found' });
@@ -102,6 +112,7 @@ export async function handleNoteById(request, response, {
   if (!validNoteId(id)) return sendJson(response, 400, { error: 'invalid_note_id' });
   const endpoint = notesEndpoint(auth.supabaseUrl);
   endpoint.searchParams.set('id', `eq.${id}`);
+  endpoint.searchParams.set('owner_id', `eq.${auth.login.userId}`);
   try {
     if (request.method === 'PUT') return await updateNote(request, endpoint, auth, response, fetchImpl);
     if (request.method === 'DELETE') return await deleteNote(endpoint, auth, response, fetchImpl);

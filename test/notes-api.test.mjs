@@ -4,6 +4,7 @@ import { handleNotes } from '../api/notes.js';
 import { handleNoteById } from '../api/notes/[id].js';
 
 const USER_A = '11111111-1111-4111-8111-111111111111';
+const USER_B = '22222222-2222-4222-8222-222222222222';
 const PROJECT_URL = 'https://yhjbdzvzdncohckdocao.supabase.co';
 const env = { SUPABASE_URL: PROJECT_URL, SUPABASE_SECRET_KEY: 'test-server-key' };
 
@@ -20,7 +21,9 @@ function response() {
 }
 
 function verifier(authorization) {
-  return authorization === 'Bearer token-a' ? { kind: 'student', userId: USER_A } : null;
+  if (authorization === 'Bearer token-a') return { kind: 'student', userId: USER_A };
+  if (authorization === 'Bearer token-b') return { kind: 'student', userId: USER_B };
+  return null;
 }
 
 function dataApi() {
@@ -44,21 +47,22 @@ function dataApi() {
         const row = { ...JSON.parse(init.body), created_at: new Date(0).toISOString() };
         if (rows.has(row.id)) return Response.json({ error: 'conflict' }, { status: 409 });
         rows.set(row.id, row);
-        return Response.json([{ id: row.id }], { status: 201 });
+        return Response.json([{ id: row.id, owner_id: row.owner_id }], { status: 201 });
       }
       if (init.method === 'PATCH') {
         const patch = JSON.parse(init.body);
         for (const row of selected) Object.assign(row, patch);
         return Response.json(selected.map(row => ({
-          id: row.id, title: row.title, content: row.content,
+          id: row.id, owner_id: row.owner_id, title: row.title, content: row.content,
         })));
       }
       if (init.method === 'DELETE') {
         for (const row of selected) rows.delete(row.id);
-        return Response.json(selected.map(row => ({ id: row.id })));
+        return Response.json(selected.map(row => ({ id: row.id, owner_id: row.owner_id })));
       }
       return Response.json(selected.map(row => ({
         id: row.id,
+        owner_id: row.owner_id,
         title: row.title,
         content: row.content,
         created_at: row.created_at,
@@ -97,8 +101,8 @@ test('A는 자신의 가상 메모를 추가·목록 조회·수정·삭제하�
   assert.equal(createResponse.statusCode, 201);
   assert.match(createResponse.body.id, /^[0-9a-f-]{36}$/u);
   assert.equal(api.rows.get(createResponse.body.id).owner_id, USER_A);
-  api.rows.set('22222222-2222-4222-8222-222222222222', {
-    id: '22222222-2222-4222-8222-222222222222',
+  api.rows.set('33333333-3333-4333-8333-333333333333', {
+    id: '33333333-3333-4333-8333-333333333333',
     owner_id: '33333333-3333-4333-8333-333333333333',
     title: '다른 소유자',
     content: '목록 제외 확인',
@@ -156,4 +160,73 @@ test('POST는 제공된 UUID를 사용하고 같은 ID의 중복 추가를 409�
   await handleNotes(request, conflict, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
   assert.equal(conflict.statusCode, 409);
   assert.deepEqual(conflict.body, { error: 'note_conflict' });
+});
+
+test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404로 거부된다', async () => {
+  const api = dataApi();
+  const users = [
+    { token: 'token-a', userId: USER_A, id: '55555555-5555-4555-8555-555555555555' },
+    { token: 'token-b', userId: USER_B, id: '66666666-6666-4666-8666-666666666666' },
+  ];
+
+  for (const user of users) {
+    const created = response();
+    await handleNotes({
+      method: 'POST',
+      headers: { authorization: `Bearer ${user.token}` },
+      body: { id: user.id, title: '본인 메모', body: '공개 가능한 가상 내용', owner_id: '위조값' },
+    }, created, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    assert.equal(created.statusCode, 201);
+    assert.equal(api.rows.get(user.id).owner_id, user.userId);
+  }
+
+  for (const [user, other] of [[users[0], users[1]], [users[1], users[0]]]) {
+    const headers = { authorization: `Bearer ${user.token}` };
+
+    const ownGet = response();
+    await handleNoteById({ method: 'GET', headers, query: { id: user.id } }, ownGet,
+      { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    assert.equal(ownGet.statusCode, 200);
+    assert.deepEqual(ownGet.body, { id: user.id, title: '본인 메모', body: '공개 가능한 가상 내용' });
+
+    for (const request of [
+      { method: 'GET', headers, query: { id: other.id, owner_id: user.userId } },
+      { method: 'PUT', headers, query: { id: other.id, owner_id: user.userId },
+        body: { title: '침범 시도', body: '바뀌면 안 됨' } },
+      { method: 'DELETE', headers, query: { id: other.id, owner_id: user.userId } },
+    ]) {
+      const denied = response();
+      await handleNoteById(request, denied,
+        { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+      assert.equal(denied.statusCode, 404);
+      assert.deepEqual(denied.body, { error: 'note_not_found' });
+    }
+
+    const changed = response();
+    await handleNoteById({
+      method: 'PUT', headers, query: { id: user.id },
+      body: { title: '수정됨', body: '본인 수정', owner_id: other.userId },
+    }, changed, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    assert.equal(changed.statusCode, 400);
+    assert.deepEqual(changed.body, { error: 'invalid_note' });
+    assert.equal(api.rows.get(user.id).owner_id, user.userId);
+
+    const ownUpdate = response();
+    await handleNoteById({
+      method: 'PUT', headers, query: { id: user.id },
+      body: { title: '수정됨', body: '본인 수정' },
+    }, ownUpdate, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    assert.equal(ownUpdate.statusCode, 200);
+    assert.deepEqual(ownUpdate.body, { id: user.id, title: '수정됨', body: '본인 수정' });
+  }
+
+  for (const user of users) {
+    const deleted = response();
+    await handleNoteById({
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${user.token}` },
+      query: { id: user.id },
+    }, deleted, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    assert.equal(deleted.statusCode, 204);
+  }
 });
