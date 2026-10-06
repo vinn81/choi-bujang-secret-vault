@@ -12,6 +12,19 @@
     h1 { margin: 16px 0; font-size: clamp(30px, 7vw, 48px); line-height: 1.2; }
     p { font-size: 17px; line-height: 1.7; color: #bfd0e5; }
     .notice { margin: 26px 0; padding: 18px; border: 1px solid #d07384; border-radius: 14px; color: #ffe3e8; background: #612a3544; }
+    .auth-panel { margin: 26px 0; padding: 22px; border: 1px solid #51667c; border-radius: 14px; background: #162538; }
+    .auth-panel h2 { margin: 0 0 8px; font-size: 22px; }
+    .auth-panel p { margin: 0 0 16px; font-size: 15px; }
+    form { display: grid; gap: 14px; }
+    label { display: grid; gap: 7px; color: #dce9f7; font-weight: 700; }
+    input { box-sizing: border-box; width: 100%; border: 1px solid #60778f; border-radius: 9px; padding: 12px; background: #0e1926; color: #ecf4ff; font: inherit; }
+    input:focus { outline: 3px solid #8ad8df55; border-color: #8ad8df; }
+    button { width: fit-content; border: 0; border-radius: 9px; padding: 11px 18px; background: #8ad8df; color: #10212c; font: inherit; font-weight: 800; cursor: pointer; }
+    button.secondary { border: 1px solid #8ad8df; background: transparent; color: #bcebf0; }
+    button:disabled { cursor: wait; opacity: .6; }
+    .auth-status { min-height: 1.5em; margin: 14px 0 0; color: #bcebf0; }
+    .auth-status.error { color: #ffb7c3; }
+    [hidden] { display: none !important; }
     ul { list-style: none; display: grid; gap: 12px; padding: 0; }
     li { border: 1px solid #51667c; border-radius: 14px; padding: 17px 19px; background: #1a2a3d; }
     strong { display: block; font-size: 18px; margin-bottom: 5px; }
@@ -20,33 +33,182 @@
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 2단계 서버 자료실</div>
+    <div class="eyebrow">BYTE BACK · 3단계 로그인 화면</div>
     <h1>점령된 자료실</h1>
     <p>아래 기록은 정적 파일이 아니라 서버 함수가 학습용 DB에서 읽은 가상 자료입니다.</p>
-    <div class="notice">정적 자료에서는 메모를 제거했지만, 아직 서버 API 주소는 로그인 없이 부를 수 있습니다. 접근 제어는 다음 단계에서 추가합니다.</div>
-    <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
+    <div class="notice">서버가 로그인 토큰을 검사한 뒤에만 가상 자료를 보냅니다. 사용자별 자료 구분은 다음 단계에서 추가합니다.</div>
+    <section class="auth-panel" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Supabase Auth 로그인</h2>
+      <p>등록된 계정의 이메일과 비밀번호로 로그인합니다.</p>
+      <form id="login-form">
+        <label>
+          이메일
+          <input id="email" name="email" type="email" autocomplete="username" required>
+        </label>
+        <label>
+          비밀번호
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button id="login-button" type="submit">로그인</button>
+      </form>
+      <div id="signed-in" hidden>
+        <p><strong id="account-email"></strong> 계정으로 로그인했습니다.</p>
+        <button id="logout-button" class="secondary" type="button">로그아웃</button>
+      </div>
+      <p id="auth-status" class="auth-status" role="status" aria-live="polite">로그인 설정을 확인하는 중입니다.</p>
+    </section>
+    <ul id="notes" aria-live="polite"><li>로그인하면 가상 자료를 볼 수 있습니다.</li></ul>
   </main>
-  <script type="module">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+  <script>
+    const SUPABASE_URL = 'https://yhjbdzvzdncohckdocao.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_r1NDdC5Kim0eZiH_NO6o8A_Mk57RazT';
+
+    const loginForm = document.querySelector('#login-form');
+    const emailInput = document.querySelector('#email');
+    const passwordInput = document.querySelector('#password');
+    const loginButton = document.querySelector('#login-button');
+    const signedInPanel = document.querySelector('#signed-in');
+    const accountEmail = document.querySelector('#account-email');
+    const logoutButton = document.querySelector('#logout-button');
+    const authStatus = document.querySelector('#auth-status');
     const list = document.querySelector('#notes');
-    try {
-      const response = await fetch('/api/notes', { cache: 'no-store' });
-      if (!response.ok) throw new Error('서버 자료를 읽을 수 없습니다.');
-      const data = await response.json();
-      if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
-      list.replaceChildren(...data.notes.map(note => {
-        const item = document.createElement('li');
-        const title = document.createElement('strong');
-        const content = document.createElement('span');
-        title.textContent = note.title;
-        content.textContent = note.content;
-        item.append(title, content);
-        return item;
-      }));
-    } catch (error) {
+    let notesRequest = 0;
+
+    function setAuthMessage(message, isError = false) {
+      authStatus.textContent = message;
+      authStatus.classList.toggle('error', isError);
+    }
+
+    function renderAuthState(session) {
+      const signedIn = Boolean(session?.user);
+      loginForm.hidden = signedIn;
+      signedInPanel.hidden = !signedIn;
+      accountEmail.textContent = signedIn ? (session.user.email || '이메일 미확인') : '';
+    }
+
+    function setAuthBusy(isBusy) {
+      emailInput.disabled = isBusy;
+      passwordInput.disabled = isBusy;
+      loginButton.disabled = isBusy;
+      logoutButton.disabled = isBusy;
+    }
+
+    function clearNotes(message = '로그인하면 가상 자료를 볼 수 있습니다.') {
+      notesRequest += 1;
       const item = document.createElement('li');
-      item.textContent = error.message;
+      item.textContent = message;
       list.replaceChildren(item);
     }
+
+    function startAuth() {
+      const hasConfig = SUPABASE_URL.startsWith('https://')
+        && SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_');
+      if (!hasConfig) {
+        setAuthBusy(true);
+        setAuthMessage('Supabase Project URL과 publishable key를 화면 코드에 입력해야 로그인할 수 있습니다.', true);
+        return;
+      }
+      if (!window.supabase?.createClient) {
+        setAuthBusy(true);
+        setAuthMessage('Supabase 공식 SDK를 불러오지 못했습니다.', true);
+        return;
+      }
+
+      const authClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      const { data: authListener } = authClient.auth.onAuthStateChange((event, session) => {
+        renderAuthState(session);
+        if (session?.access_token) {
+          void loadNotes(session.access_token);
+        } else {
+          clearNotes();
+        }
+        if (event === 'INITIAL_SESSION') {
+          setAuthMessage(session ? '저장된 로그인 상태를 확인했습니다.' : '현재 로그아웃 상태입니다.');
+        } else if (event === 'SIGNED_IN') {
+          setAuthMessage('로그인했습니다.');
+        } else if (event === 'SIGNED_OUT') {
+          setAuthMessage('로그아웃했습니다.');
+        }
+      });
+
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setAuthBusy(true);
+        setAuthMessage('로그인하는 중입니다.');
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        try {
+          const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          renderAuthState(data.session);
+          loginForm.reset();
+          setAuthMessage('로그인했습니다.');
+        } catch (error) {
+          setAuthMessage(`로그인 실패: ${error.message || '이메일과 비밀번호를 확인하세요.'}`, true);
+        } finally {
+          passwordInput.value = '';
+          setAuthBusy(false);
+        }
+      });
+
+      logoutButton.addEventListener('click', async () => {
+        setAuthBusy(true);
+        setAuthMessage('로그아웃하는 중입니다.');
+        try {
+          const { error } = await authClient.auth.signOut({ scope: 'local' });
+          if (error) throw error;
+          renderAuthState(null);
+          clearNotes();
+          setAuthMessage('로그아웃했습니다.');
+        } catch (error) {
+          setAuthMessage(`로그아웃 실패: ${error.message || '다시 시도하세요.'}`, true);
+        } finally {
+          setAuthBusy(false);
+        }
+      });
+
+      window.addEventListener('pagehide', () => authListener.subscription.unsubscribe(), { once: true });
+    }
+
+    async function loadNotes(accessToken) {
+      if (!accessToken) {
+        clearNotes();
+        return;
+      }
+      const requestId = ++notesRequest;
+      const loadingItem = document.createElement('li');
+      loadingItem.textContent = '가상 자료를 불러오는 중입니다.';
+      list.replaceChildren(loadingItem);
+      try {
+        const response = await fetch('/api/notes', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (requestId !== notesRequest) return;
+        if (response.status === 401) throw new Error('로그인이 필요하거나 로그인 시간이 끝났습니다.');
+        if (!response.ok) throw new Error('서버 자료를 읽을 수 없습니다.');
+        const data = await response.json();
+        if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
+        if (requestId !== notesRequest) return;
+        list.replaceChildren(...data.notes.map(note => {
+          const item = document.createElement('li');
+          const title = document.createElement('strong');
+          const content = document.createElement('span');
+          title.textContent = note.title;
+          content.textContent = note.content;
+          item.append(title, content);
+          return item;
+        }));
+      } catch (error) {
+        if (requestId !== notesRequest) return;
+        const item = document.createElement('li');
+        item.textContent = error.message;
+        list.replaceChildren(item);
+      }
+    }
+
+    startAuth();
   </script>
 </body>
 </html>

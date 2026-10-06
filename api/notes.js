@@ -1,12 +1,30 @@
+import config from '../aleph.config.json' with { type: 'json' };
+import { createLoginVerifier } from '../src/verify-login.mjs';
+
+let loginVerifier;
+
 function sendJson(response, status, body) {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   return response.status(status).json(body);
 }
 
+function getLoginVerifier(supabaseSecretKey) {
+  loginVerifier ??= createLoginVerifier({ config, supabaseSecretKey });
+  return loginVerifier;
+}
+
+function authorizationHeader(request) {
+  if (typeof request.headers?.get === 'function') {
+    return request.headers.get('authorization');
+  }
+  return request.headers?.authorization;
+}
+
 export async function handleNotes(request, response, {
   env = process.env,
   fetchImpl = globalThis.fetch,
+  verifyAuthorization,
 } = {}) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
@@ -20,6 +38,13 @@ export async function handleNotes(request, response, {
   }
 
   try {
+    const verifyLogin = verifyAuthorization ?? getLoginVerifier(supabaseSecretKey);
+    const login = await verifyLogin(authorizationHeader(request));
+    if (!login) {
+      response.setHeader('WWW-Authenticate', 'Bearer');
+      return sendJson(response, 401, { error: 'authentication_required' });
+    }
+
     const parsedUrl = new URL(supabaseUrl);
     if (parsedUrl.protocol !== 'https:') {
       return sendJson(response, 500, { error: 'server_not_configured' });
