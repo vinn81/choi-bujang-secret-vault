@@ -11,11 +11,14 @@ export function deploymentIdentity(env, config) {
   if (env.VERCEL_GIT_PROVIDER !== 'github' || !OWNER.test(owner || '')
       || !REPO.test(repo || '') || repo === '.' || repo === '..'
       || repo.toLowerCase().endsWith('.git') || !SHA.test(commit || '')
-      || !HOST.test(host || '') || ![1, 2, 3, 4].includes(config?.step)
+      || !HOST.test(host || '') || ![1, 2, 3, 4, 5].includes(config?.step)
       || typeof config.judgeIssuer !== 'string'
       || !/^https:\/\/[a-z0-9-]+\.up\.railway\.app\/defense\/judge$/iu.test(config.judgeIssuer)
       || typeof config.sampleMarker !== 'string'
-      || !/^[A-Z0-9_]{1,80}$/u.test(config.sampleMarker)) {
+      || !/^[A-Z0-9_]{1,80}$/u.test(config.sampleMarker)
+      || !Array.isArray(config.allowedRoutes) || config.allowedRoutes.length === 0
+      || config.allowedRoutes.some(route => typeof route !== 'string'
+        || route !== route.trim() || route.length > 160)) {
     throw new Error('배포 식별 정보와 현재 방어 단계를 확인할 수 없습니다.');
   }
   return {
@@ -26,5 +29,6 @@ export function deploymentIdentity(env, config) {
     publicAppUrl: `https://${host.toLowerCase()}`,
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
+    allowedRoutes: [...config.allowedRoutes],
   };
 }

@@ -38,10 +38,10 @@
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 3단계 로그인 자료실</div>
+    <div class="eyebrow">BYTE BACK · 5단계 서버 경유 자료실</div>
     <h1>점령된 자료실</h1>
     <p>서버가 확인한 로그인 사용자 ID로 가상 메모를 저장하고 불러옵니다.</p>
-    <div class="notice">목록과 추가는 로그인 사용자 ID를 사용합니다. 개별 메모 조회·수정·삭제의 소유자 검사는 4단계에서 추가합니다.</div>
+    <div class="notice">메모 읽기·추가·수정·삭제는 서버 함수만 사용하며 로그인과 소유자 검사를 유지합니다.</div>
 
     <section class="panel" aria-labelledby="auth-heading">
       <h2 id="auth-heading">Supabase Auth 로그인</h2>
@@ -91,9 +91,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
   <script>
-    const SUPABASE_URL = 'https://yhjbdzvzdncohckdocao.supabase.co';
-    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_r1NDdC5Kim0eZiH_NO6o8A_Mk57RazT';
-
     const loginForm = document.querySelector('#login-form');
     const emailInput = document.querySelector('#email');
     const passwordInput = document.querySelector('#password');
@@ -274,21 +271,34 @@
       }
     }
 
-    function startAuth() {
-      const hasConfig = SUPABASE_URL.startsWith('https://')
-        && SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_');
-      if (!hasConfig) {
-        setAuthBusy(true);
-        setStatus(authStatus, 'Supabase Project URL과 publishable key가 필요합니다.', true);
-        return;
-      }
+    async function startAuth() {
       if (!window.supabase?.createClient) {
         setAuthBusy(true);
         setStatus(authStatus, 'Supabase 공식 SDK를 불러오지 못했습니다.', true);
         return;
       }
 
-      const authClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      let authConfig;
+      try {
+        const response = await fetch('/api/notes?auth=config', {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        authConfig = await response.json();
+        if (!response.ok || typeof authConfig?.supabaseUrl !== 'string'
+            || typeof authConfig.publishableKey !== 'string') {
+          throw new Error('invalid_auth_config');
+        }
+      } catch {
+        setAuthBusy(true);
+        setStatus(authStatus, '서버 로그인 설정을 불러오지 못했습니다.', true);
+        return;
+      }
+
+      const authClient = window.supabase.createClient(
+        authConfig.supabaseUrl,
+        authConfig.publishableKey,
+      );
       const { data: authListener } = authClient.auth.onAuthStateChange((event, session) => {
         currentAccessToken = session?.access_token || '';
         renderAuthState(session);
@@ -370,7 +380,7 @@
       }
     });
 
-    startAuth();
+    void startAuth();
   </script>
 </body>
 </html>

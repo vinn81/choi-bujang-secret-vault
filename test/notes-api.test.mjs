@@ -6,7 +6,11 @@ import { handleNoteById } from '../api/notes/[id].js';
 const USER_A = '11111111-1111-4111-8111-111111111111';
 const USER_B = '22222222-2222-4222-8222-222222222222';
 const PROJECT_URL = 'https://yhjbdzvzdncohckdocao.supabase.co';
-const env = { SUPABASE_URL: PROJECT_URL, SUPABASE_SECRET_KEY: 'test-server-key' };
+const env = {
+  SUPABASE_URL: PROJECT_URL,
+  SUPABASE_SECRET_KEY: 'test-server-key',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only-not-a-real-key',
+};
 
 function response() {
   return {
@@ -87,6 +91,18 @@ test('무로그인 목록·추가·조회·수정·삭제는 자료 조회 전�
     assert.deepEqual(output.body, { error: 'authentication_required' });
   }
   assert.equal(api.calls, 0);
+});
+
+test('로그인용 공개 설정은 서버 함수에서만 전달하고 서버 전용 키는 내보내지 않는다', async () => {
+  const output = response();
+  await handleNotes({ method: 'GET', headers: {}, query: { auth: 'config' } }, output, { env });
+  assert.equal(output.statusCode, 200);
+  assert.deepEqual(output.body, {
+    supabaseUrl: PROJECT_URL,
+    publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
+  });
+  assert.doesNotMatch(JSON.stringify(output.body), /test-server-key/u);
+  assert.equal(output.headers.get('cache-control'), 'no-store');
 });
 
 test('A는 자신의 가상 메모를 추가·목록 조회·수정·삭제하고 삭제 뒤 404를 받는다', async () => {

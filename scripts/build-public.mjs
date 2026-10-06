@@ -5,8 +5,8 @@ import { deploymentIdentity } from './deployment-identity.mjs';
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'public', 'data.json');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
-if (config.step !== 4) {
-  throw new Error('4단계 설정과 메모 소유권 API를 확인하세요.');
+if (config.step !== 5) {
+  throw new Error('5단계 설정과 서버 경유 메모 API를 확인하세요.');
 }
 await mkdir(resolve(root, 'public'), { recursive: true });
 await writeFile(output, `${JSON.stringify({

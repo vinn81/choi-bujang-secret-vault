@@ -3,6 +3,7 @@ import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/u;
 let loginVerifier;
 
 export function sendJson(response, status, body) {
@@ -21,6 +22,30 @@ function authorizationHeader(request) {
     return request.headers.get('authorization');
   }
   return request.headers?.authorization;
+}
+
+function authConfigRequested(request) {
+  const value = request.query?.auth;
+  return request.method === 'GET' && typeof value === 'string' && value === 'config';
+}
+
+function sendAuthConfig(response, env) {
+  const supabaseUrl = env.SUPABASE_URL?.trim();
+  const publishableKey = env.SUPABASE_PUBLISHABLE_KEY?.trim();
+  try {
+    const parsedUrl = new URL(supabaseUrl);
+    const issuerOrigin = new URL(config.identityProvider.issuer).origin;
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.origin !== issuerOrigin
+        || !PUBLISHABLE_KEY.test(publishableKey || '')) {
+      throw new TypeError('invalid_auth_config');
+    }
+    return sendJson(response, 200, {
+      supabaseUrl: parsedUrl.origin,
+      publishableKey,
+    });
+  } catch {
+    return sendJson(response, 500, { error: 'server_not_configured' });
+  }
 }
 
 export async function authorizeNotesRequest(request, response, {
@@ -172,6 +197,7 @@ export async function handleNotes(request, response, {
     response.setHeader('Allow', 'GET, POST');
     return sendJson(response, 405, { error: 'method_not_allowed' });
   }
+  if (authConfigRequested(request)) return sendAuthConfig(response, env);
   const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
   if (!auth) return undefined;
   try {
