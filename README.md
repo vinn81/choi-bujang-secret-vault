@@ -1,83 +1,56 @@
-# BYTE BACK 방어전 2단계 — 자료를 코드 밖으로 옮깁니다
+# BYTE BACK 방어전 3단계 — 진짜 로그인을 붙입니다
 
-이 저장소는 1단계에서 공개했던 가상 메모 네 건을 학습용 Supabase `notes` 테이블로 옮기고, Vercel 서버 함수로 읽는 2단계 자료실입니다. 실제 학생 자료, 비밀번호, 토큰, 서버 전용 키를 코드와 Git에 넣지 않습니다.
+이 저장소는 Supabase Auth 이메일·비밀번호 로그인과 서버 토큰 검사를 붙인 3단계 자료실입니다. 로그인 사용자는 가상 메모를 추가·조회·수정·삭제할 수 있습니다. 비밀번호, JWT, 서버 전용 키, 실제 개인정보는 코드와 Git에 넣지 않습니다.
 
 ## 현재 작동
 
-- `/`는 `/api/notes`를 호출해 가상 메모 네 건을 카드로 표시합니다.
-- `/api/notes`는 `api/notes.js`에서 Supabase `notes` 테이블을 읽습니다.
-- `/data.json`의 `notes`는 빈 배열이며, 빌드도 공개 메모를 복사하지 않습니다.
-- `owner_id`는 나중에 사용할 `uuid` 칸으로만 두었고 `auth.users` 외래키는 걸지 않았습니다.
-- `notes`는 RLS를 켜고 `anon`·`authenticated`를 차단하며, 서버의 `service_role`에만 조회 권한을 줍니다.
+- `/`에서 Supabase Auth 로그인·로그아웃과 가상 메모 CRUD 화면을 제공합니다.
+- 서버는 `src/verify-login.mjs`로 `Authorization: Bearer` 토큰을 검사하며 브라우저의 `userId`·`role`을 믿지 않습니다.
+- `GET /api/notes`는 서버가 확인한 로그인 사용자의 메모 배열만 반환합니다.
+- `POST /api/notes`는 서버가 확인한 사용자 ID를 `owner_id`로 저장하고 `{id}`를 반환합니다.
+- `GET`·`PUT`·`DELETE /api/notes/:id`는 한 건 조회·수정·삭제를 처리하며 삭제 뒤 GET은 `404`입니다.
+- `/data.json`의 `notes`는 계속 빈 배열입니다.
 
-## Vercel 서버 환경변수
+## 3단계에 남긴 약점
 
-Vercel 프로젝트의 **Settings → Environment Variables**에서 다음 이름을 등록합니다.
+개별 메모 API는 로그인 여부만 검사하고 메모 소유자는 아직 검사하지 않습니다. 따라서 ID를 아는 B가 A의 메모를 조회·수정·삭제할 가능성이 있으며, 이 접근 제어는 4단계에서 추가합니다. B의 타인 메모 접근 시험도 4단계에서 기록합니다.
+
+## 설정
+
+Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름이 필요합니다.
 
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
 
-값은 Vercel의 비밀 입력란에만 직접 넣습니다. 코드, 브라우저 파일, API 응답, 로그, Git, 제출 묶음에 값을 넣지 않습니다.
+값은 Vercel 비밀 입력란에만 직접 넣습니다. 브라우저에는 공개용 Project URL과 publishable key만 사용합니다.
 
-## 아직 남은 약점
+Supabase **SQL Editor**에서는 로컬 학습 자료 `artifacts/step3-supabase.sql`을 실행해 서버 역할에 `notes`의 조회·추가·수정·삭제 권한을 줍니다. 이 파일은 `artifacts/` 아래에 있어 커밋하지 않습니다.
 
-자료와 서버 전용 키는 정적 파일과 브라우저에서 빼냈지만, 2단계의 `/api/notes`는 아직 로그인을 검사하지 않는 공개 주소입니다. 주소를 아는 누구나 가상 메모를 요청할 수 있으며, 인증과 사용자별 접근 제어는 다음 단계에서 추가해야 합니다.
+## 실제 경로와 저장점 설정
 
-또한 현재 파일에서 메모를 제거해도 이전 Git 커밋과 이전 Vercel 배포 이력은 자동으로 삭제되지 않습니다. 예전 공개 커밋과 배포가 남아 있는 한 과거 노출이 해소됐다고 보고하지 않습니다.
-
-## 공개 파일 검색 절차
-
-GitHub 최신 `main`의 모든 추적 파일에서 네 가상 메모 문장을 검색합니다. `git fetch`는 원격 조회 정보만 갱신하며 작업 파일을 바꾸지 않습니다.
-
-```powershell
-$memoPattern = '실습용 가상 (과제|포트폴리오|리추얼|행정) 기록'
-git fetch origin main
-git grep -n -E $memoPattern origin/main -- .
-```
-
-출력이 없어야 GitHub 최신 추적 파일에 해당 문장이 없는 것입니다. 파일명과 줄이 나오면 제거되지 않은 공개 본문이 있는 것입니다.
-
-현재 Vercel 정적 응답 `/`과 `/data.json`에서도 같은 문장을 검색합니다. `/api/notes`는 DB에서 읽은 가상 메모를 의도적으로 반환하므로 이 정적 파일 검색 대상에서 분리합니다.
-
-```powershell
-$deploymentBase = 'https://choi-bujang-secret-vault-phi.vercel.app'
-$memoPattern = '실습용 가상 (과제|포트폴리오|리추얼|행정) 기록'
-foreach ($path in @('/', '/data.json')) {
-  $body = & curl.exe --silent --show-error --fail ($deploymentBase + $path)
-  $count = [regex]::Matches($body, $memoPattern).Count
-  '{0}: memo sentence matches={1}' -f $path, $count
-}
-```
-
-두 경로 모두 `memo sentence matches=0`이어야 현재 정적 배포 파일에 메모 문장이 없는 것입니다.
-
-공개 API의 남은 약점은 본문을 출력하지 않고 비로그인 HTTP 상태만 확인합니다.
-
-```powershell
-curl.exe --silent --output NUL --write-out 'HTTP %{http_code}' ($deploymentBase + '/api/notes')
-```
-
-로그인 없이 `HTTP 200`이면 2단계의 공개 API 약점이 남아 있는 것입니다. 이는 이번 단계의 의도된 관찰 결과이지만, 보호 완료나 심판 판정으로 기록하지 않습니다.
+- 실제 배포 주소: `https://choi-bujang-secret-vault-phi.vercel.app`
+- 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
+- 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`
+- `originalApiUrl`: 5단계 전이므로 `null`
+- `src/decider.mjs`의 구현 규칙: `starter.deny`
 
 ## 확인 기록
 
-2026-10-06 2단계 변경·재배포 후 익명 요청 기준입니다.
+2026-10-06 기준입니다.
 
-- GitHub 최신 `data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
-- GitHub 최신 `public/data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
-- 현재 Vercel `/`: HTTP 200, 정적 HTML의 메모 문장 0건, `X-Content-Type-Options: nosniff`
-- 현재 Vercel `/data.json`: HTTP 200, 메모 문장 0건, `notes` 0건
-- 현재 Vercel `/api/notes`: 비로그인 HTTP 200, 가상 메모 4건
-- 현재 Vercel `/aleph.json`: HTTP 200, 2단계·저장소·배포 커밋 정보 확인
-- 판정: 현재 정적 파일과 GitHub 최신 파일에서는 가상 메모 문장이 검색되지 않습니다. 다만 이전 공개 커밋과 이전 배포가 남아 있으므로 과거 노출이 해소됐다고 보고하지 않습니다.
-- 공개 API 약점: `/api/notes`가 로그인 없이 가상 메모 4건을 반환하므로 인증을 추가하기 전까지 누구나 호출할 수 있습니다.
+- 실제 배포에서 비로그인 `GET /api/notes`: HTTP `401` 확인
+- 실제 배포에서 A 로그인·메모 표시·로그아웃 화면 전환: 학생 확인
+- 로컬 가상 요청 시험: A의 추가·목록·한 건 조회·수정·삭제와 삭제 뒤 `404` 통과
+- 로컬 가상 요청 시험: 무로그인 GET·POST·PUT·DELETE `401` 통과
+- CRUD가 포함된 이번 저장점의 새 Vercel 배포와 실제 A CRUD: 아직 미실행
+- B의 타인 메모 접근: 4단계로 남겨 미실행
+
+위 기록은 학생의 실행·관찰과 로컬 자기 점검이며 심판 판정이 아닙니다. 이전 공개 커밋과 이전 배포 이력도 자동으로 삭제되지 않습니다.
 
 ## 다시 확인하기
 
-로컬에서 정적 결과물이 메모를 포함하지 않는지 확인할 때는 다음을 실행합니다.
-
 ```powershell
-npm.cmd run build -- --local
+npm.cmd run test:notes
 ```
 
-로컬 빌드는 Vercel 배포나 심판 판정을 증명하지 않습니다. 배포 후 `/`에서 카드 네 건, `/data.json`에서 빈 `notes`, `/api/notes`에서 공개 가상 메모 응답을 각각 확인합니다. 심판의 접수·판정은 포털에서 확인합니다.
+정상 결과는 A의 추가·수정·삭제와 삭제 뒤 `404`입니다. 거부되어야 할 결과는 무로그인 자료 요청의 `401`입니다. 실제 배포 후 `/`에서 A 계정으로 같은 흐름을 직접 확인하며, 비밀번호나 토큰은 기록하지 않습니다.

@@ -4,7 +4,7 @@ import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 
 const config = {
-  step: 2,
+  step: 3,
   judgeIssuer: 'https://aleph-judge-production.up.railway.app/defense/judge',
   sampleMarker: 'SAMPLE_NOTE_1',
   publicAppUrl: 'https://student-defense.vercel.app',
@@ -20,7 +20,7 @@ const env = {
 test('build identity uses Vercel Git and deployment metadata', () => {
   assert.deepEqual(deploymentIdentity(env, config), {
     schema: 'aleph.defense.deployment.v1',
-    step: 2,
+    step: 3,
     repoUrl: 'https://github.com/student-a/aleph-defense',
     commit: 'a'.repeat(40),
     publicAppUrl: 'https://student-defense-123.vercel.app',
@@ -31,29 +31,38 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
 
-test('second-stage checks record empty static data and the remaining public API', async () => {
+test('third-stage checks record empty static data and anonymous API denials', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   try {
     globalThis.fetch = async (url, init) => {
       const requestUrl = String(url);
       requests.push({ requestUrl, init });
-      const notes = requestUrl.endsWith('/api/notes')
-        ? [{ title: '가상' }, { title: '가상' }, { title: '가상' }, { title: '가상' }]
-        : [];
-      return new Response(JSON.stringify({ notes }), {
-        status: 200,
+      const isStaticData = requestUrl.endsWith('/data.json');
+      return new Response(JSON.stringify(isStaticData ? { notes: [] } : {}), {
+        status: isStaticData ? 200 : 401,
         headers: { 'content-type': 'application/json' },
       });
     };
+
     const results = await runAttackChecks(config);
-    assert.deepEqual(requests.map(item => item.requestUrl), [
-      'https://student-defense.vercel.app/data.json',
-      'https://student-defense.vercel.app/api/notes',
+
+    assert.deepEqual(requests.map(({ requestUrl, init }) => ({
+      path: new URL(requestUrl).pathname,
+      method: init.method ?? 'GET',
+    })), [
+      { path: '/data.json', method: 'GET' },
+      { path: '/api/notes', method: 'GET' },
+      { path: '/api/notes', method: 'POST' },
+      { path: '/api/notes/00000000-0000-4000-8000-000000000000', method: 'GET' },
+      { path: '/api/notes/00000000-0000-4000-8000-000000000000', method: 'PUT' },
+      { path: '/api/notes/00000000-0000-4000-8000-000000000000', method: 'DELETE' },
     ]);
     assert.ok(requests.every(item => item.init.redirect === 'error'));
-    assert.match(results[0].observed, /메모 0건/u);
-    assert.match(results[1].observed, /메모 4건/u);
+    assert.match(results[0].observed, /HTTP 200 .* 0건/u);
+    assert.match(results[1].observed, /HTTP 401/u);
+    assert.match(results[2].observed, /HTTP 401/u);
+    assert.match(results[3].observed, /GET 401 .* PUT 401 .* DELETE 401/u);
   } finally {
     globalThis.fetch = originalFetch;
   }

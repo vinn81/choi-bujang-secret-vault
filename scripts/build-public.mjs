@@ -5,8 +5,8 @@ import { deploymentIdentity } from './deployment-identity.mjs';
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'public', 'data.json');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
-if (config.step !== 2) {
-  throw new Error('2단계 설정과 서버 자료 API를 확인하세요.');
+if (config.step !== 3) {
+  throw new Error('3단계 설정과 로그인 자료 API를 확인하세요.');
 }
 await mkdir(resolve(root, 'public'), { recursive: true });
 await writeFile(output, `${JSON.stringify({
