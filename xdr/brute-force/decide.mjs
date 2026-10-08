@@ -1,27 +1,14 @@
-import { readFile } from 'node:fs/promises';
+// 심판 격리 환경은 내장 모듈·npm 패키지 import 를 허용하지 않으므로
+// patterns.json 의 두 패턴을 여기에 그대로 옮겨 둡니다. 두 곳을 함께 고칩니다.
+const passwordGuessingPattern = {
+  name: '같은 주소·같은 계정의 짧은 시간 연속 실패',
+  condition: '짧은 시간 동안 같은 data.srcip과 data.srcuser 조합에서 로그인 실패가 연속으로 발생한다.',
+};
 
-// patterns.json 을 읽지 못하는 격리 환경에서도 같은 이름으로 판단합니다.
-const FALLBACK_PATTERNS = [
-  { name: '같은 주소·같은 계정의 짧은 시간 연속 실패', condition: '짧은 시간 동안 같은 data.srcip과 data.srcuser 조합에서 로그인 실패가 연속으로 발생한다.' },
-  { name: '같은 주소에서 여러 계정에 같은 비밀번호 대입', condition: '짧은 시간 동안 같은 data.srcip에서 동일한 비밀번호를 여러 data.srcuser 계정에 대입한 로그인 실패가 발생한다.' },
-];
-
-async function loadPatterns() {
-  try {
-    const document = JSON.parse(
-      await readFile(new URL('./patterns.json', import.meta.url), 'utf8'),
-    );
-    if (Array.isArray(document?.patterns) && document.patterns.length >= 2
-        && document.patterns.every((item) => typeof item?.name === 'string')) {
-      return document.patterns;
-    }
-  } catch {
-    // 아래 기본 패턴을 씁니다.
-  }
-  return FALLBACK_PATTERNS;
-}
-
-const [passwordGuessingPattern, passwordSprayingPattern] = await loadPatterns();
+const passwordSprayingPattern = {
+  name: '같은 주소에서 여러 계정에 같은 비밀번호 대입',
+  condition: '짧은 시간 동안 같은 data.srcip에서 동일한 비밀번호를 여러 data.srcuser 계정에 대입한 로그인 실패가 발생한다.',
+};
 
 // 문구는 보조 신호입니다. 건수·계정 수·T1110 같은 구조 항목을 먼저 봅니다.
 const FAILURE_SIGNAL =
@@ -207,8 +194,8 @@ function isClearAttack(row, pattern) {
 }
 
 async function askJev(row, pattern) {
-  const apiKey = process.env.TYPESAFE_API_KEY;
-  if (!apiKey) return null;
+  const apiKey = globalThis.process?.env?.TYPESAFE_API_KEY;
+  if (!apiKey || typeof fetch !== 'function') return null;
 
   try {
     const response = await fetch(

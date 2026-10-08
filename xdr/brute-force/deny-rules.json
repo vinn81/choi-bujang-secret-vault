@@ -1,13 +1,13 @@
 {
   "schema": "aleph.xdr.deny-rules.v1",
   "moduleKey": "brute-force",
-  "generatedAt": "2026-10-08T02:24:51.859Z",
+  "generatedAt": "2026-10-08T02:32:38.081Z",
   "rules": [
     {
       "ruleId": "xdr.brute_force.ff2e620e504c",
       "action": "deny",
       "sourceAddress": "203.0.113.10",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-01"
       ]
@@ -16,7 +16,7 @@
       "ruleId": "xdr.brute_force.4f0c0dc7a0e0",
       "action": "deny",
       "sourceAddress": "203.0.113.10",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-02"
       ]
@@ -25,7 +25,7 @@
       "ruleId": "xdr.brute_force.b32b4fdea74d",
       "action": "deny",
       "sourceAddress": "198.51.100.20",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-03"
       ]
@@ -34,7 +34,7 @@
       "ruleId": "xdr.brute_force.e139735d67bf",
       "action": "deny",
       "sourceAddress": "192.0.2.30",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-04"
       ]
@@ -43,7 +43,7 @@
       "ruleId": "xdr.brute_force.9801837353f0",
       "action": "deny",
       "sourceAddress": "203.0.113.21",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-05"
       ]
@@ -52,7 +52,7 @@
       "ruleId": "xdr.brute_force.d59d61969db9",
       "action": "deny",
       "sourceAddress": "198.51.100.44",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-06"
       ]
@@ -61,7 +61,7 @@
       "ruleId": "xdr.brute_force.4b1bb3a85d15",
       "action": "deny",
       "sourceAddress": "203.0.113.15",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-07"
       ]
@@ -70,7 +70,7 @@
       "ruleId": "xdr.brute_force.9f5763eaa40d",
       "action": "deny",
       "sourceAddress": "192.0.2.18",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-08"
       ]
@@ -79,7 +79,7 @@
       "ruleId": "xdr.brute_force.cfa08e13816d",
       "action": "deny",
       "sourceAddress": "198.51.100.8",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-09"
       ]
@@ -88,7 +88,7 @@
       "ruleId": "xdr.brute_force.c81efa87eb86",
       "action": "deny",
       "sourceAddress": "203.0.113.40",
-      "expiresAt": "2026-10-08T02:39:51.859Z",
+      "expiresAt": "2026-10-08T02:47:38.081Z",
       "evidenceAlertIds": [
         "bf-10"
       ]
