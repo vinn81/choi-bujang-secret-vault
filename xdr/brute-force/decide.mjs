@@ -7,6 +7,9 @@ const patternsDocument = JSON.parse(
 const [passwordGuessingPattern, passwordSprayingPattern] = patternsDocument.patterns;
 const MULTI_ACCOUNT_SIGNAL = /여러 계정|서로 다른 계정|계정\s*\d+개|두 계정|계정 이름을 바꿔|같은 비밀번호/;
 const FAILURE_SIGNAL = /로그인 실패|비밀번호.*실패|실패.*로그인|실패가|실패\s*\d+건/;
+const SAME_PASSWORD_SIGNAL = /같은 비밀번호/;
+const CLEAR_FAILURE_COUNT = 20;
+const CLEAR_ACCOUNT_COUNT = 8;
 
 function actionFor(confidence) {
   if (confidence >= 0.85) return 'block';
@@ -15,31 +18,43 @@ function actionFor(confidence) {
 }
 
 function extractAlert(alert) {
+  const level = alert?.level ?? alert?.rule?.level;
   return {
     timestamp: alert?.timestamp,
-    srcip: alert?.data?.srcip,
-    srcuser: alert?.data?.srcuser,
-    level: alert?.rule?.level,
-    description: alert?.rule?.description,
+    srcip: alert?.srcip ?? alert?.data?.srcip,
+    srcuser: alert?.srcuser ?? alert?.data?.srcuser,
+    level: typeof level === 'number' ? level : Number(level),
+    description: alert?.description ?? alert?.rule?.description,
   };
 }
 
-function matchPattern(alert, row) {
-  const techniques = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
-  if (!techniques.includes('T1110') || typeof row.description !== 'string') return null;
+function matchPattern(row) {
+  if (typeof row.description !== 'string') return null;
 
   if (MULTI_ACCOUNT_SIGNAL.test(row.description)) return passwordSprayingPattern;
   if (row.srcip && row.srcuser && FAILURE_SIGNAL.test(row.description)) return passwordGuessingPattern;
   return null;
 }
 
-function isClearAttack(alert, row, pattern) {
-  if (!pattern || !Number.isFinite(row.level) || row.level < 10) return false;
+function countFrom(description, pattern) {
+  const match = pattern.exec(description);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
 
-  const count = Number.parseInt(alert?.data?.count, 10);
-  const hasLargeFailureCount = Number.isFinite(count) && count >= 15;
-  const hasMultipleAccounts = MULTI_ACCOUNT_SIGNAL.test(row.description);
-  return hasLargeFailureCount || hasMultipleAccounts;
+function isNormalEvent(row) {
+  return Number.isFinite(row.level) && row.level <= 3;
+}
+
+function isClearAttack(row, pattern) {
+  if (!pattern || typeof row.description !== 'string') return false;
+
+  const failureCount = countFrom(row.description, /(\d+)\s*건/u);
+  const accountCount = countFrom(row.description, /계정\s*(\d+)\s*개/u);
+  const hasLargeFailureCount = failureCount >= CLEAR_FAILURE_COUNT;
+  const hasManyAccounts = accountCount >= CLEAR_ACCOUNT_COUNT;
+  const hasExplicitPasswordSpray = SAME_PASSWORD_SIGNAL.test(row.description)
+    && MULTI_ACCOUNT_SIGNAL.test(row.description);
+  return hasLargeFailureCount || hasManyAccounts || hasExplicitPasswordSpray;
 }
 
 async function askJev(row, pattern) {
@@ -92,14 +107,14 @@ async function askJev(row, pattern) {
 
 export async function decide(alert) {
   const row = extractAlert(alert);
-  const pattern = matchPattern(alert, row);
+  const pattern = matchPattern(row);
 
-  if (!pattern) {
+  if (!pattern || isNormalEvent(row)) {
     const confidence = 0;
     return { action: actionFor(confidence), confidence, reason: '근거 패턴 없음' };
   }
 
-  if (isClearAttack(alert, row, pattern)) {
+  if (isClearAttack(row, pattern)) {
     const confidence = 0.95;
     return { action: actionFor(confidence), confidence, reason: pattern.name };
   }
