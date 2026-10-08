@@ -1,0 +1,29 @@
+{
+  "technique": {
+    "id": "T1190",
+    "name": "Exploit Public-Facing Application",
+    "source": "https://attack.mitre.org/techniques/T1190/"
+  },
+  "patterns": [
+    {
+      "name": "요청 인자 안의 SQL 구문",
+      "condition": "같은 data.srcip 의 요청에서 data.url 의 검색어·입력 인자에 따옴표로 문장을 끊고 SQL 구문(UNION SELECT, OR 1=1, 주석 표기 등)을 이어 붙인 형태가 반복해서 나타난다.",
+      "evidence": "MITRE ATT&CK T1190은 공격자가 인터넷에 공개된 웹 애플리케이션의 약점을 악용하며, 대표적인 예로 SQL 주입(CWE-89)을 든다."
+    },
+    {
+      "name": "요청 인자 안의 스크립트 태그",
+      "condition": "같은 data.srcip 의 요청에서 data.url 의 입력 인자에 <script> 태그나 이벤트 처리 속성(onerror= 등) 같은 스크립트 삽입 표식이 반복해서 나타난다.",
+      "evidence": "MITRE ATT&CK T1190은 웹 애플리케이션의 입력 처리 약점 악용을 다루며, 그 범주에 드는 스크립트 삽입은 CWE-79(교차 사이트 스크립팅)로 분류된다."
+    },
+    {
+      "name": "경로 거슬러 올라가기(../) 반복",
+      "condition": "같은 data.srcip 의 요청에서 data.url 의 경로·파일 인자에 ../ 또는 그 인코딩(%2e%2e%2f 등)이 여러 단계 이어지는 형태가 반복해서 나타난다.",
+      "evidence": "MITRE ATT&CK T1190은 공개 웹 서버의 약점 악용을 다루며, ../ 로 허용 폴더 밖 파일에 접근하는 경로 이탈은 CWE-22로 분류된다."
+    },
+    {
+      "name": "요청 인자 안의 명령 구분자",
+      "condition": "같은 data.srcip 의 요청에서 data.url 의 입력 인자에 ; | && ` $( 같은 명령 구분자 뒤로 운영체제 명령을 이어 붙인 형태가 반복해서 나타난다.",
+      "evidence": "MITRE ATT&CK T1190은 공개 웹 애플리케이션의 입력 처리 약점 악용을 다루며, 입력에 명령을 이어 붙이는 OS 명령 주입은 CWE-78로 분류된다."
+    }
+  ]
+}

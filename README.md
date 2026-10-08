@@ -10,6 +10,7 @@
 - Auth용 Project URL과 publishable key 값은 정적 화면 코드에 두지 않고 서버 환경설정에서 전달합니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
+- 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 
 ## 보너스 XDR xdr-01
 
@@ -20,6 +21,10 @@
 `connect.mjs`에 `decideWithTemporaryDeny` 연결 함수를 추가했습니다. 검증된 출발 주소와 운영 등록 정책을 별도로 받으며, 차단하지 않은 요청은 기존 판정기로 전달합니다. 실제 운영 호출부와 출발 주소 계약은 현재 자료실에 없어 연결을 완료하지 않았습니다. 필요한 항목은 `docs/XDR_INTEGRATION.md`에 정리했습니다.
 
 `npm.cmd run xdr:test`로 원본 분류, 문구 변형, 차단 규칙·알림, 만료 해제와 기존 판정기 응답 보존을 확인합니다. 정상 허용은 시험용 판정기로 확인하며, 실제 시작 판정기의 `starter.deny`는 유지됩니다.
+
+## 보너스 XDR xdr-02
+
+`xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
 
 ## 5단계 접근 제어
 
@@ -53,6 +58,7 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 - 로컬 가상 요청 시험: A/B 자기 CRUD 유지, 상대 메모 GET·PUT·DELETE `404`, 소유자 변경 `400`, 무로그인 요청 `401`
 - 정적 화면 코드의 Supabase 공개 키 값 제거와 `/aleph.json`의 `allowedRoutes` 생성 시험 통과
 - 2026-10-08 보너스 XDR 가상 경보: `block` 10건, `alert` 9건, `record` 9건이며 정상 이벤트 차단 0건
+- 2026-10-08 보너스 XDR xdr-02 가상 웹 주입 경보: `block` 8건, `alert` 9건, `record` 9건이며 정상 이벤트 차단 0건
 - 5단계 커밋의 새 Vercel 배포, 새 `/aleph.json`, 첫 화면 보안 헤더 실응답: 아직 미실행
 - anon 키를 사용한 원본 API 직접 HTTP 요청: 아직 미실행
 
@@ -73,3 +79,10 @@ npm.cmd run xdr:run -- brute-force
 ```
 
 정상 결과는 `result.json`의 `block` 10건·`alert` 9건·`record` 9건과 정상 이벤트 차단 0건입니다. 애매하거나 정상인 경보 주소가 `deny-rules.json`에 들어가면 안 됩니다. `alerts.log`는 실행할 때마다 새 알림 줄을 누적합니다.
+
+```powershell
+npm.cmd run xdr:run -- web-injection
+node xdr/web-injection/respond.mjs
+```
+
+정상 결과는 `block` 8건·`alert` 9건·`record` 9건이고, wi-01~08 주소만 `deny`, 나머지는 `pass`입니다.
