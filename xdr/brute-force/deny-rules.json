@@ -1,0 +1,89 @@
+{
+  "schema": "aleph.xdr.deny-rules.v1",
+  "moduleKey": "brute-force",
+  "generatedAt": "2026-10-08T00:35:11.172Z",
+  "rules": [
+    {
+      "ruleId": "xdr.brute_force.631f08140b24",
+      "action": "deny",
+      "sourceAddress": "203.0.113.10",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-01",
+        "bf-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.140cc81db30f",
+      "action": "deny",
+      "sourceAddress": "198.51.100.20",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.a0c2b533f88e",
+      "action": "deny",
+      "sourceAddress": "192.0.2.30",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.9ec158a17a98",
+      "action": "deny",
+      "sourceAddress": "203.0.113.21",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.b39c5c787cf1",
+      "action": "deny",
+      "sourceAddress": "198.51.100.44",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.c74177bda558",
+      "action": "deny",
+      "sourceAddress": "203.0.113.15",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.4b7d36a8e334",
+      "action": "deny",
+      "sourceAddress": "192.0.2.18",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-08"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.c53bee22afaf",
+      "action": "deny",
+      "sourceAddress": "198.51.100.8",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-09"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute_force.8e84592a1e01",
+      "action": "deny",
+      "sourceAddress": "203.0.113.40",
+      "expiresAt": "2026-10-08T00:50:11.172Z",
+      "evidenceAlertIds": [
+        "bf-10"
+      ]
+    }
+  ]
+}

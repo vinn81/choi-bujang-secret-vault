@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -55,6 +55,19 @@ export async function runXdr({ root, moduleKey, writeError = (line) => console.e
   const outDir = join(root, 'xdr', moduleKey);
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+
+  const connectorPath = join(outDir, 'connect.mjs');
+  try {
+    await access(connectorPath);
+    const connector = await import(pathToFileURL(connectorPath).href);
+    if (typeof connector.publishXdrResult !== 'function') {
+      throw new TypeError('XDR 연결 모듈이 publishXdrResult 함수를 내보내지 않았습니다.');
+    }
+    await connector.publishXdrResult({ root, moduleKey, fixture, result });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+
   return result;
 }
 
