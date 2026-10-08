@@ -14,8 +14,8 @@ function validSourceAddress(value) {
   return value.split('.').every((part) => Number(part) <= 255);
 }
 
-function ruleIdFor(sourceAddress) {
-  const digest = createHash('sha256').update(sourceAddress).digest('hex').slice(0, 12);
+function ruleIdFor(sourceAddress, alertId) {
+  const digest = createHash('sha256').update(`${sourceAddress}\0${alertId}`).digest('hex').slice(0, 12);
   return `xdr.brute_force.${digest}`;
 }
 
@@ -29,7 +29,7 @@ export async function publishXdrResult({ root, moduleKey, fixture, result, now =
   if (Number.isNaN(generatedAt.getTime())) throw new TypeError('invalid_generated_at');
   const expiresAt = new Date(generatedAt.getTime() + BLOCK_TTL_MS).toISOString();
   const alertsById = new Map(fixture.alerts.map((alert) => [alert?.id, alert]));
-  const groupedRules = new Map();
+  const denyRules = [];
   const logLines = [];
 
   for (const decision of result.decisions) {
@@ -51,15 +51,13 @@ export async function publishXdrResult({ root, moduleKey, fixture, result, now =
 
     if (decision.action === 'block') {
       logEntry.expiresAt = expiresAt;
-      const current = groupedRules.get(sourceAddress) ?? {
-        ruleId: ruleIdFor(sourceAddress),
+      denyRules.push({
+        ruleId: ruleIdFor(sourceAddress, alert.id),
         action: 'deny',
         sourceAddress,
         expiresAt,
-        evidenceAlertIds: [],
-      };
-      current.evidenceAlertIds.push(alert.id);
-      groupedRules.set(sourceAddress, current);
+        evidenceAlertIds: [alert.id],
+      });
     }
 
     logLines.push(JSON.stringify(logEntry));
@@ -69,7 +67,7 @@ export async function publishXdrResult({ root, moduleKey, fixture, result, now =
     schema: 'aleph.xdr.deny-rules.v1',
     moduleKey,
     generatedAt: generatedAt.toISOString(),
-    rules: [...groupedRules.values()],
+    rules: denyRules,
   };
   const rulesPath = join(root, 'xdr', moduleKey, 'deny-rules.json');
   await writeFile(rulesPath, `${JSON.stringify(rulesDocument, null, 2)}\n`, 'utf8');
