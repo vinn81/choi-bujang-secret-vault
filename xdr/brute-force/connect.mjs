@@ -106,3 +106,49 @@ export function checkTemporaryDeny({ trustedSourceAddress, at = new Date() }, ru
     evidenceAlertIds: [...rule.evidenceAlertIds],
   };
 }
+
+// 운영 엔진의 호출부에서 사용합니다. request에 IP 필드를 추가하지 않습니다.
+// trustedSourceAddress는 엔진이 확인한 별도 값이어야 합니다.
+// denyResponse와 등록 목록은 운영 엔진이 제공해야 하며 기본값을 만들지 않습니다.
+export async function decideWithTemporaryDeny({
+  request,
+  trustedSourceAddress,
+  rulesDocument,
+  decide,
+  denyResponse,
+  allowedReasonCodes,
+  allowedRuleIds,
+  at = new Date(),
+}) {
+  if (typeof decide !== 'function' || typeof denyResponse !== 'function'
+      || !Array.isArray(allowedReasonCodes) || !Array.isArray(allowedRuleIds)) {
+    throw new TypeError('xdr_engine_configuration_required');
+  }
+  if (!validSourceAddress(trustedSourceAddress)) {
+    throw new TypeError('xdr_verified_source_address_required');
+  }
+  if (Number.isNaN(new Date(at).getTime())) {
+    throw new TypeError('invalid_check_time');
+  }
+  if (rulesDocument?.schema !== 'aleph.xdr.deny-rules.v1'
+      || !Array.isArray(rulesDocument.rules)) {
+    throw new TypeError('invalid_deny_rules');
+  }
+
+  const match = checkTemporaryDeny({ trustedSourceAddress, at }, rulesDocument);
+  if (match.action !== 'deny') return decide(request);
+
+  const response = await denyResponse(request, match);
+  const keys = response && typeof response === 'object'
+    ? Object.keys(response).sort().join(',') : '';
+  if (keys !== 'decision,reasonCode,requestId,ruleIds,schema'
+      || response.schema !== 'aleph.decision.v1'
+      || response.requestId !== request?.requestId
+      || response.decision !== 'deny'
+      || !allowedReasonCodes.includes(response.reasonCode)
+      || !Array.isArray(response.ruleIds) || response.ruleIds.length === 0
+      || !response.ruleIds.every((id) => allowedRuleIds.includes(id))) {
+    throw new TypeError('xdr_registered_deny_response_required');
+  }
+  return response;
+}

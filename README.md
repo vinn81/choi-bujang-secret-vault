@@ -17,6 +17,10 @@
 
 이 기능은 로컬 가상 경보 연습입니다. 운영 Wazuh 사건 전달, 검증된 출발 주소 전달, 실제 ZTNA 차단 집행은 연결됐다고 표시하지 않습니다. 기존 `src/decider.mjs` 규칙은 변경하지 않았습니다.
 
+`connect.mjs`에 `decideWithTemporaryDeny` 연결 함수를 추가했습니다. 검증된 출발 주소와 운영 등록 정책을 별도로 받으며, 차단하지 않은 요청은 기존 판정기로 전달합니다. 실제 운영 호출부와 출발 주소 계약은 현재 자료실에 없어 연결을 완료하지 않았습니다. 필요한 항목은 `docs/XDR_INTEGRATION.md`에 정리했습니다.
+
+`npm.cmd run xdr:test`로 원본 분류, 문구 변형, 차단 규칙·알림, 만료 해제와 기존 판정기 응답 보존을 확인합니다. 정상 허용은 시험용 판정기로 확인하며, 실제 시작 판정기의 `starter.deny`는 유지됩니다.
+
 ## 5단계 접근 제어
 
 학습 DB의 `public.notes`에서 PUBLIC·anon·authenticated의 직접 CRUD 권한을 회수했습니다. SQL Editor의 실효 권한 확인에서 anon·authenticated는 SELECT·INSERT·UPDATE·DELETE가 모두 `false`, service_role은 모두 `true`였습니다. 서버 함수는 서버 전용 설정으로 자료를 처리하면서 로그인과 소유자 검사를 계속 적용합니다.
