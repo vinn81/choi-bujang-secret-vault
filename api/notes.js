@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { resourceIdForApi } from '../src/resources.mjs';
@@ -49,6 +49,17 @@ function sendAuthConfig(response, env) {
   }
 }
 
+// 8단계: 심판 로그인은 같은 sub 아래 a/b 두 신원을 쓸 수 있으므로, 검증된 sub·실행 번호·신원을
+// 묶어 신원마다 다른 소유자 키(UUID 모양)를 만듭니다. 학생 로그인의 소유자 키는 sub 그대로입니다.
+export function ownerLogin(login) {
+  if (login?.kind !== 'judge') return login;
+  const hex = createHash('sha256')
+    .update(`judge-owner\0${login.userId}\0${login.runId}\0${login.identity}`).digest('hex');
+  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  const userId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+  return Object.freeze({ ...login, userId });
+}
+
 export async function authorizeNotesRequest(request, response, {
   env = process.env,
   verifyAuthorization,
@@ -80,7 +91,7 @@ export async function authorizeNotesRequest(request, response, {
       sendJson(response, 401, { error: 'authentication_required' });
       return null;
     }
-    return { login, supabaseUrl: parsedUrl, supabaseSecretKey };
+    return { login: ownerLogin(login), supabaseUrl: parsedUrl, supabaseSecretKey };
   } catch {
     sendJson(response, 500, { error: 'server_not_configured' });
     return null;
