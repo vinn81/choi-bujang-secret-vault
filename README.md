@@ -26,6 +26,19 @@
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
 
+## 6단계 등록 기기 판정 규칙
+
+`src/decider.mjs`의 `device_registered` 규칙은 `docs/DECIDER_REQUEST.md` 계약의 `request.deviceRegistered`가 `true`일 때만 내 자료실 읽기(`GET /notes`, `GET /notes/:id`)를 `allow`합니다. 값이 `false`이거나 없으면 `deny`·`device_not_registered`로 거부합니다. 그 밖의 요청은 기존 `starter.deny`로 거부합니다. 따로 설치할 접속 프로그램은 없습니다. 기존 자료실 주소와 브라우저 화면은 그대로입니다.
+
+확인 순서:
+
+1. `npm.cmd run decider:test`를 실행합니다.
+2. `통과 · 등록 기기의 정상 요청`이 나오면 등록 기기의 읽기 요청이 `allow`된 것입니다.
+3. `통과 · 미등록 기기의 가상 요청`이 나오면 `deviceRegistered: false` 요청이 `deny`·`device_not_registered`로 거부된 것입니다.
+4. 둘 중 하나라도 `확인 필요`이거나 `판정기 연습 첫 오류`가 나오면 `src/decider.mjs`의 `RULE_IDS`와 규칙을 확인합니다.
+
+2026-10-13 로컬 실행에서 두 항목이 모두 `통과`였습니다. 이 결과는 가상 요청 연습이며 심판 판정이 아닙니다. 미등록 기기 공격 시험은 심판이 맡습니다.
+
 ## 5단계 접근 제어
 
 학습 DB의 `public.notes`에서 PUBLIC·anon·authenticated의 직접 CRUD 권한을 회수했습니다. SQL Editor의 실효 권한 확인에서 anon·authenticated는 SELECT·INSERT·UPDATE·DELETE가 모두 `false`, service_role은 모두 `true`였습니다. 서버 함수는 서버 전용 설정으로 자료를 처리하면서 로그인과 소유자 검사를 계속 적용합니다.
