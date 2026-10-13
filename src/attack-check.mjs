@@ -75,9 +75,9 @@ export async function runAttackChecks(config) {
   } : {});
   const staticData = await inspect('static_notes_removed', '/data.json');
   const anonymousList = await inspect('anonymous_notes_list', '/api/notes');
+  const anonymousGet = await inspect('anonymous_note_item', itemPath);
   // 12단계: 로그인 없이 탈환 작전실 요약을 읽으면 401이어야 합니다(GET).
   const anonymousOps = config.step >= 12 ? await inspect('anonymous_ops_summary', '/api/ops') : null;
-  const anonymousGet = await inspect('anonymous_note_item', itemPath);
 
   // 6~9단계: 판정기·탐지는 이 점검에서 HTTP 요청을 보내지 않으므로 observed를 not_run으로 둡니다.
   // 계산 결과를 실측처럼 적지 않습니다. 결과는 npm run decider:test·detect:test와 작전실(서버 실행 표시)에서 확인합니다.
@@ -98,8 +98,9 @@ export async function runAttackChecks(config) {
   ].filter(([stage]) => config.step >= stage)
     .map(([, attackId, expected]) => ({ attackId, expected: `${expected}${LOCAL_ONLY}`, observed: 'not_run' }));
 
+  // 결과 순서는 시작 틀과 같게 실제 요청을 보낸 순서(원본 API, /data.json, 목록, 추가, 한 건)를 앞에 두고,
+  // 10~12단계 점검을 그 뒤에, 요청을 보내지 않는 판정기·탐지 점검을 맨 뒤에 둡니다.
   return [
-    ...localChecks,
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
@@ -119,6 +120,11 @@ export async function runAttackChecks(config) {
       attackId: 'anonymous_notes_create',
       expected: '비로그인 POST /api/notes는 HTTP 401 (쓰기 요청이라 묶음에서 보내지 않음)',
       observed: 'not_run',
+    },
+    {
+      attackId: 'anonymous_note_item',
+      expected: '비로그인 GET /api/notes/:id는 HTTP 401 (PUT·DELETE는 쓰기 요청이라 묶음에서 보내지 않음)',
+      observed: seen(anonymousGet),
     },
     ...(config.step >= 10 ? [
       {
@@ -141,10 +147,6 @@ export async function runAttackChecks(config) {
         observed: seen(anonymousOps),
       },
     ] : []),
-    {
-      attackId: 'anonymous_note_item',
-      expected: '비로그인 GET /api/notes/:id는 HTTP 401 (PUT·DELETE는 쓰기 요청이라 묶음에서 보내지 않음)',
-      observed: seen(anonymousGet),
-    },
+    ...localChecks,
   ];
 }
