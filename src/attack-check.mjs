@@ -3,7 +3,7 @@
 // 12단계: 심판은 이 점검을 격리 환경에서 실행하며 공개 HTTPS 주소로 GET·HEAD 요청만 허용합니다.
 // 쓰기 요청(POST·PUT·DELETE)이 필요한 점검은 보내지 않고 observed를 not_run으로 둡니다.
 // 그 쓰기 요청 결과는 작전실의 1~11단계 실측 재확인(로그인한 브라우저에서 실행)으로 남깁니다.
-// 실제로 보내는 GET 요청에는 x-aleph-attack-id 헤더로 그 점검의 attackId를 붙이고, observed에 방법·경로·상태를 적습니다.
+// 실제로 보내는 GET 요청은 정해진 헤더만 쓰고, observed에 방법·경로·상태를 적습니다.
 export async function runAttackChecks(config) {
   if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
@@ -26,7 +26,6 @@ export async function runAttackChecks(config) {
     try {
       const response = await fetch(target instanceof URL ? target : new URL(target, app), {
         ...init,
-        headers: { ...init.headers, 'x-aleph-attack-id': attackId },
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
       });
@@ -47,7 +46,7 @@ export async function runAttackChecks(config) {
   const loadPublishableKey = async () => {
     try {
       const response = await fetch(new URL('/api/notes?auth=config', app), {
-        headers: { Accept: 'application/json', 'x-aleph-attack-id': 'direct_original_notes' },
+        headers: { Accept: 'application/json' },
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
       });
