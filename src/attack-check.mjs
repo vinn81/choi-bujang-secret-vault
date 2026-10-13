@@ -1,5 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
+// 12단계: 심판은 이 점검을 격리 환경에서 실행하며 공개 HTTPS 주소로 GET·HEAD 요청만 허용합니다.
+// 쓰기 요청(POST·PUT·DELETE)이 필요한 점검은 보내지 않고 observed를 not_run으로 둡니다.
+// 그 쓰기 요청 결과는 작전실의 1~11단계 실측 재확인(로그인한 브라우저에서 실행)으로 남깁니다.
 export async function runAttackChecks(config) {
   if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
@@ -62,31 +67,9 @@ export async function runAttackChecks(config) {
   } : {});
   const staticData = await inspect('/data.json');
   const anonymousList = await inspect('/api/notes');
-  const anonymousCreate = await inspect('/api/notes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  // 10단계: 로그인 없이 복원 경로를 부르면 자료 조회 전에 401이어야 합니다.
-  const anonymousRestore = config.step >= 10 ? await inspect('/api/restore', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: '00000000-0000-4000-8000-000000000000' }),
-  }) : null;
-  // 11단계: 로그인 없이 기기 승인 요청·확인 경로를 부르면 401이어야 합니다.
-  const anonymousDevice = config.step >= 11 ? await Promise.all(['/api/device/register', '/api/device/verify']
-    .map(path => inspect(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }))) : null;
-  // 12단계: 로그인 없이 탈환 작전실 요약을 읽으면 401이어야 합니다(묶음 점검 상한 20개라 기기 경로 줄에 함께 적음).
+  // 12단계: 로그인 없이 탈환 작전실 요약을 읽으면 401이어야 합니다(GET).
   const anonymousOps = config.step >= 12 ? await inspect('/api/ops') : null;
-  const [anonymousGet, anonymousPut, anonymousDelete] = await Promise.all([
-    inspect(itemPath),
-    inspect(itemPath, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }),
-    inspect(itemPath, { method: 'DELETE' }),
-  ]);
+  const anonymousGet = await inspect(itemPath);
 
   // 6단계: 로컬 판정기에 가상 요청 두 건을 실제로 넣어 본 결과만 기록합니다(심판 판정 아님).
   const deviceChecks = [];
@@ -95,7 +78,7 @@ export async function runAttackChecks(config) {
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
     const { normal, suspicious } = fixtureRequests();
     const registered = await decide(normal);
-    const unregistered = await decide({ ...normal, requestId: crypto.randomUUID(),
+    const unregistered = await decide({ ...normal, requestId: randomUUID(),
       deviceRegistered: false });
     deviceChecks.push(
       {
@@ -112,8 +95,8 @@ export async function runAttackChecks(config) {
     // 7단계: 복합 이상 가상 사건과 위조 출처를 로컬 판정기에 넣은 결과입니다.
     // 재로그인 전 실제 자료 차단은 제공 엔진이 없어 여기서 실행하지 않습니다.
     if (config.step >= 7) {
-      const unusual = await decide({ ...suspicious, requestId: crypto.randomUUID() });
-      const spoofed = await decide({ ...suspicious, requestId: crypto.randomUUID(),
+      const unusual = await decide({ ...suspicious, requestId: randomUUID() });
+      const spoofed = await decide({ ...suspicious, requestId: randomUUID(),
         signals: { ...suspicious.signals, source: 'client_header' } });
       deviceChecks.push(
         {
@@ -135,7 +118,7 @@ export async function runAttackChecks(config) {
     }
     // 8단계: 자원 구역 규칙을 로컬 판정기에 넣은 결과입니다. 남의 메모 차단은 아래 자료 API 점검과 학생 확인으로 봅니다.
     if (config.step >= 8) {
-      const zone = overrides => decide({ ...normal, requestId: crypto.randomUUID(), ...overrides });
+      const zone = overrides => decide({ ...normal, requestId: randomUUID(), ...overrides });
       const ownEdit = await zone({ method: 'PUT', path: '/notes/demo', route: 'PUT /notes/:id' });
       const noticeEdit = await zone({ service: 'notices', method: 'PUT', path: '/notices/demo',
         route: 'PUT /notices/:id' });
@@ -214,32 +197,34 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'anonymous_notes_create',
-      expected: '비로그인 POST /api/notes는 HTTP 401',
-      observed: `POST /api/notes HTTP ${anonymousCreate.status}`,
+      expected: '비로그인 POST /api/notes는 HTTP 401 (쓰기 요청이라 묶음에서 보내지 않음)',
+      observed: 'not_run',
     },
-    ...(anonymousRestore ? [
+    ...(config.step >= 10 ? [
       {
         attackId: 'anonymous_restore',
-        expected: '비로그인 POST /api/restore는 HTTP 401',
-        observed: `POST /api/restore HTTP ${anonymousRestore.status}`,
-      },
-      {
-        attackId: 'restore_owner_hash_live',
-        expected: '시험 계정 B 메모 한 건 복원 뒤 ID·소유자·내용 해시가 사본과 같음, B의 A 메모 복원 404',
-        observed: '미실행 · 로그인 토큰이 필요한 학생 직접 확인 항목',
+        expected: '비로그인 POST /api/restore는 HTTP 401, B 메모 한 건 복원 뒤 ID·소유자·내용 해시 일치 (쓰기 요청이라 묶음에서 보내지 않음)',
+        observed: 'not_run',
       },
     ] : []),
-    ...(anonymousDevice ? [
+    ...(config.step >= 11 ? [
       {
         attackId: 'anonymous_device_flow',
-        expected: '비로그인 POST /api/device/register·verify와 GET /api/ops는 모두 HTTP 401, 승인 전 학생 메모 요청 403은 학생 직접 확인',
-        observed: `register HTTP ${anonymousDevice[0].status} · verify HTTP ${anonymousDevice[1].status}${anonymousOps ? ` · ops HTTP ${anonymousOps.status}` : ''}`,
+        expected: '비로그인 POST /api/device/register·verify는 HTTP 401 (쓰기 요청이라 묶음에서 보내지 않음)',
+        observed: 'not_run',
+      },
+    ] : []),
+    ...(anonymousOps ? [
+      {
+        attackId: 'anonymous_ops_summary',
+        expected: '비로그인 GET /api/ops는 HTTP 401',
+        observed: `GET /api/ops HTTP ${anonymousOps.status}`,
       },
     ] : []),
     {
       attackId: 'anonymous_note_item',
-      expected: '비로그인 GET·PUT·DELETE /api/notes/:id는 모두 HTTP 401',
-      observed: `GET ${anonymousGet.status} · PUT ${anonymousPut.status} · DELETE ${anonymousDelete.status}`,
+      expected: '비로그인 GET /api/notes/:id는 HTTP 401 (PUT·DELETE는 쓰기 요청이라 묶음에서 보내지 않음)',
+      observed: `GET ${anonymousGet.status} · PUT not_run · DELETE not_run`,
     },
   ];
 }
