@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
-
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 // 12단계: 심판은 이 점검을 격리 환경에서 실행하며 공개 HTTPS 주소로 GET·HEAD 요청만 허용합니다.
 // 쓰기 요청(POST·PUT·DELETE)이 필요한 점검은 보내지 않고 observed를 not_run으로 둡니다.
 // 그 쓰기 요청 결과는 작전실의 1~11단계 실측 재확인(로그인한 브라우저에서 실행)으로 남깁니다.
+// 실제로 보내는 GET 요청에는 x-aleph-attack-id 헤더로 그 점검의 attackId를 붙이고, observed에 방법·경로·상태를 적습니다.
 export async function runAttackChecks(config) {
   if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
@@ -23,10 +22,11 @@ export async function runAttackChecks(config) {
     throw new Error('aleph.config.json의 실제 배포 주소와 원본 API 주소를 먼저 넣어 주세요.');
   }
 
-  const inspect = async (target, init = {}) => {
+  const inspect = async (attackId, target, init = {}) => {
     try {
       const response = await fetch(target instanceof URL ? target : new URL(target, app), {
         ...init,
+        headers: { ...init.headers, 'x-aleph-attack-id': attackId },
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
       });
@@ -47,7 +47,7 @@ export async function runAttackChecks(config) {
   const loadPublishableKey = async () => {
     try {
       const response = await fetch(new URL('/api/notes?auth=config', app), {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'x-aleph-attack-id': 'direct_original_notes' },
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
       });
@@ -62,133 +62,45 @@ export async function runAttackChecks(config) {
 
   const itemPath = '/api/notes/00000000-0000-4000-8000-000000000000';
   const publishableKey = await loadPublishableKey();
-  const originalDirect = await inspect(originalApi, publishableKey ? {
+  const originalDirect = await inspect('direct_original_notes', originalApi, publishableKey ? {
     headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` },
   } : {});
-  const staticData = await inspect('/data.json');
-  const anonymousList = await inspect('/api/notes');
+  const staticData = await inspect('static_notes_removed', '/data.json');
+  const anonymousList = await inspect('anonymous_notes_list', '/api/notes');
   // 12단계: 로그인 없이 탈환 작전실 요약을 읽으면 401이어야 합니다(GET).
-  const anonymousOps = config.step >= 12 ? await inspect('/api/ops') : null;
-  const anonymousGet = await inspect(itemPath);
+  const anonymousOps = config.step >= 12 ? await inspect('anonymous_ops_summary', '/api/ops') : null;
+  const anonymousGet = await inspect('anonymous_note_item', itemPath);
 
-  // 6단계: 로컬 판정기에 가상 요청 두 건을 실제로 넣어 본 결과만 기록합니다(심판 판정 아님).
-  const deviceChecks = [];
-  if (config.step >= 6) {
-    const { decide } = await import('./decider.mjs');
-    const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
-    const { normal, suspicious } = fixtureRequests();
-    const registered = await decide(normal);
-    const unregistered = await decide({ ...normal, requestId: randomUUID(),
-      deviceRegistered: false });
-    deviceChecks.push(
-      {
-        attackId: 'registered_device_read',
-        expected: '등록 기기의 내 메모 읽기 가상 요청은 allow',
-        observed: `로컬 판정기 ${registered.decision} · ${registered.reasonCode}`,
-      },
-      {
-        attackId: 'unregistered_device_read',
-        expected: '미등록 기기의 가상 요청은 deny · device_not_registered',
-        observed: `로컬 판정기 ${unregistered.decision} · ${unregistered.reasonCode}`,
-      },
-    );
-    // 7단계: 복합 이상 가상 사건과 위조 출처를 로컬 판정기에 넣은 결과입니다.
-    // 재로그인 전 실제 자료 차단은 제공 엔진이 없어 여기서 실행하지 않습니다.
-    if (config.step >= 7) {
-      const unusual = await decide({ ...suspicious, requestId: randomUUID() });
-      const spoofed = await decide({ ...suspicious, requestId: randomUUID(),
-        signals: { ...suspicious.signals, source: 'client_header' } });
-      deviceChecks.push(
-        {
-          attackId: 'unusual_access_step_up',
-          expected: '이상 시각·처음 보는 네트워크·대량 읽기가 겹친 가상 사건은 step_up · step_up_required',
-          observed: `로컬 판정기 ${unusual.decision} · ${unusual.reasonCode}`,
-        },
-        {
-          attackId: 'spoofed_signal_source',
-          expected: '클라이언트 헤더 출처 신호는 신뢰하지 않아 step_up 근거가 되지 않음',
-          observed: `로컬 판정기 ${spoofed.decision} · ${spoofed.reasonCode}`,
-        },
-        {
-          attackId: 'step_up_live_block',
-          expected: '재로그인 전 실제 자료 차단과 새 로그인 뒤 허용',
-          observed: '미실행 · 제공 엔진이 저장소에 없음',
-        },
-      );
-    }
-    // 8단계: 자원 구역 규칙을 로컬 판정기에 넣은 결과입니다. 남의 메모 차단은 아래 자료 API 점검과 학생 확인으로 봅니다.
-    if (config.step >= 8) {
-      const zone = overrides => decide({ ...normal, requestId: randomUUID(), ...overrides });
-      const ownEdit = await zone({ method: 'PUT', path: '/notes/demo', route: 'PUT /notes/:id' });
-      const noticeEdit = await zone({ service: 'notices', method: 'PUT', path: '/notices/demo',
-        route: 'PUT /notices/:id' });
-      const featurePath = await zone({ path: '/notes/export/all', route: 'GET /notes/:id' });
-      deviceChecks.push(
-        {
-          attackId: 'own_note_zone',
-          expected: '등록 기기의 자기 메모 수정 가상 요청은 allow',
-          observed: `로컬 판정기 ${ownEdit.decision} · ${ownEdit.reasonCode}`,
-        },
-        {
-          attackId: 'student_notice_edit',
-          expected: '일반 학생의 강사 공지 수정은 deny · instructor_role_required',
-          observed: `로컬 판정기 ${noticeEdit.decision} · ${noticeEdit.reasonCode}`,
-        },
-        {
-          attackId: 'unknown_feature_path',
-          expected: '표에 없는 기능 경로(/notes/export/all)는 deny · route_not_allowed',
-          observed: `로컬 판정기 ${featurePath.decision} · ${featurePath.reasonCode}`,
-        },
-      );
-    }
-    // 9단계: 로컬 탐지 함수에 가상 조회 사건을 넣은 결과입니다. 실제 회수와 경과 시간은 심판이 확인합니다.
-    if (config.step >= 9) {
-      const { detect, revocationProposal } = await import('./detect.mjs');
-      const start = Date.UTC(2026, 9, 1);
-      const reads = (count, sub) => Array.from({ length: count }, (_, index) => ({
-        at: new Date(start + index * 2000).toISOString(), method: 'GET', identity: { sub },
-        deviceId: 'a'.repeat(16),
-      }));
-      const ordinary = detect(reads(30, 'learner_fixture'));
-      const burst = reads(121, 'learner_fixture');
-      const burstResult = detect(burst);
-      const proposal = revocationProposal(burst);
-      deviceChecks.push(
-        {
-          attackId: 'normal_reads_observed',
-          expected: '같은 사용자 조회 30건은 observe, 회수 제안 없음',
-          observed: `로컬 탐지 ${ordinary.action}`,
-        },
-        {
-          attackId: 'burst_read_detected',
-          expected: '10분 안 조회 121건은 propose_revocation · burst_read',
-          observed: `로컬 탐지 ${burstResult.action} · ${burstResult.reasonCode ?? '없음'}`,
-        },
-        {
-          attackId: 'revocation_proposal_target',
-          expected: '회수 제안은 가상 사용자·기기 하나와 이유 코드를 담음',
-          observed: proposal ? `로컬 제안 ${proposal.reasonCode} · 기기 ${proposal.deviceId ? '1개' : '미확인'}` : '로컬 제안 없음',
-        },
-        {
-          attackId: 'live_revocation',
-          expected: '운영 엔진의 실제 회수와 첫 의심부터 회수까지 경과 시간',
-          observed: '미실행 · 운영 엔진 연결 없음, 심판이 확인',
-        },
-      );
-    }
-  }
+  // 6~9단계: 판정기·탐지는 이 점검에서 HTTP 요청을 보내지 않으므로 observed를 not_run으로 둡니다.
+  // 계산 결과를 실측처럼 적지 않습니다. 결과는 npm run decider:test·detect:test와 작전실(서버 실행 표시)에서 확인합니다.
+  const LOCAL_ONLY = ' (요청을 보내지 않는 판정기·탐지 점검)';
+  const localChecks = [
+    [6, 'registered_device_read', '등록 기기의 내 메모 읽기 가상 요청은 allow'],
+    [6, 'unregistered_device_read', '미등록 기기의 가상 요청은 deny · device_not_registered'],
+    [7, 'unusual_access_step_up', '이상 시각·처음 보는 네트워크·대량 읽기가 겹친 가상 사건은 step_up · step_up_required'],
+    [7, 'spoofed_signal_source', '클라이언트 헤더 출처 신호는 신뢰하지 않아 step_up 근거가 되지 않음'],
+    [7, 'step_up_live_block', '재로그인 전 실제 자료 차단과 새 로그인 뒤 허용(제공 엔진 집행)'],
+    [8, 'own_note_zone', '등록 기기의 자기 메모 수정 가상 요청은 allow'],
+    [8, 'student_notice_edit', '일반 학생의 강사 공지 수정은 deny · instructor_role_required'],
+    [8, 'unknown_feature_path', '표에 없는 기능 경로(/notes/export/all)는 deny · route_not_allowed'],
+    [9, 'normal_reads_observed', '같은 사용자 조회 30건은 observe, 회수 제안 없음'],
+    [9, 'burst_read_detected', '10분 안 조회 121건은 propose_revocation · burst_read'],
+    [9, 'revocation_proposal_target', '회수 제안은 가상 사용자·기기 하나와 이유 코드를 담음'],
+    [9, 'live_revocation', '운영 엔진의 실제 회수와 첫 의심부터 회수까지 경과 시간(제공 엔진 집행)'],
+  ].filter(([stage]) => config.step >= stage)
+    .map(([, attackId, expected]) => ({ attackId, expected: `${expected}${LOCAL_ONLY}`, observed: 'not_run' }));
 
   return [
-    ...deviceChecks,
+    ...localChecks,
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
-      observed: `${publishableKey ? 'publishable 키' : '키 없음'} 직접 GET HTTP ${originalDirect.status} · 메모 ${originalDirect.noteCount ?? '확인 불가'}건`,
+      observed: `GET ${originalApi.pathname} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status} · 메모 ${originalDirect.noteCount ?? '확인 불가'}건`,
     },
     {
       attackId: 'static_notes_removed',
       expected: '비로그인 /data.json의 메모 0건',
-      observed: `/data.json HTTP ${staticData.status} · 메모 ${staticData.noteCount ?? '확인 불가'}건`,
+      observed: `GET /data.json HTTP ${staticData.status} · 메모 ${staticData.noteCount ?? '확인 불가'}건`,
     },
     {
       attackId: 'anonymous_notes_list',
@@ -224,7 +136,7 @@ export async function runAttackChecks(config) {
     {
       attackId: 'anonymous_note_item',
       expected: '비로그인 GET /api/notes/:id는 HTTP 401 (PUT·DELETE는 쓰기 요청이라 묶음에서 보내지 않음)',
-      observed: `GET ${anonymousGet.status} · PUT not_run · DELETE not_run`,
+      observed: `GET ${itemPath} HTTP ${anonymousGet.status}`,
     },
   ];
 }
