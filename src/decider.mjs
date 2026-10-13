@@ -5,9 +5,10 @@ import { resourceIdForRoute } from './resources.mjs';
 
 export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'step_up_required', 'resource_zone']);
 
-// 8단계 resource_zone: 학생에게 허용한 자원 구역의 동작입니다(자기 메모 읽기·수정).
+// 8단계 resource_zone: 학생에게 허용한 자원 구역의 동작입니다(자기 메모 한 건 읽기·수정).
+// 메모 전체 목록(GET /notes)은 여러 사람의 자료를 한꺼번에 여는 경로라 허용하지 않습니다.
 // 메모의 주인은 판정기가 알 수 없으므로(subjectId는 가명) 최종 자료 API가 owner_id로 다시 확인합니다.
-const STUDENT_ALLOWED = new Set(['GET /notes', 'GET /notes/:id', 'PUT /notes/:id']);
+const STUDENT_ALLOWED = new Set(['GET /notes/:id', 'PUT /notes/:id']);
 // 강사 공지 수정은 강사 역할이 필요하지만 현재 계약에 역할 항목이 없어 모두 거부합니다.
 const INSTRUCTOR_ONLY = new Set(['PUT /notices/:id']);
 const SUBJECT_ID = /^[A-Za-z0-9_-]{1,128}$/u;
