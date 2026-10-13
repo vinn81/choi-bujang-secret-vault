@@ -51,8 +51,14 @@ export function loadVerifiedPolicy() {
   return { manifest, entries };
 }
 
+// Git이 저장하는 형태(줄 끝 정규화 뒤)로 비교합니다. Windows의 CRLF 변환만 다른 파일은 같음으로 봅니다.
+const sameAsCommit = (commit, path) => {
+  try { return git('hash-object', '--', path).toString().trim() === git('rev-parse', `${commit}:${path}`).toString().trim(); }
+  catch { return false; }
+};
+
 // 파일마다 'same' | 'changed' | 'missing'과 복원했을 때 쓸 내용을 계산합니다.
-export function comparePolicy({ entries }) {
+export function comparePolicy({ manifest, entries }) {
   return entries.map(entry => {
     const currentPath = join(root, entry.path);
     if (!existsSync(currentPath)) {
@@ -74,7 +80,10 @@ export function comparePolicy({ entries }) {
       return { ...entry, status: 'changed', currentHash: sha256(current), changedKeys,
         restored: Buffer.from(`${JSON.stringify(merged, null, 2)}\n`, 'utf8') };
     }
-    if (sha256(current) === entry.hash) return { ...entry, status: 'same', currentHash: entry.hash, restored: null };
+    const lf = Buffer.from(current.toString('utf8').replace(/\r\n/gu, '\n'), 'utf8');
+    if (sha256(current) === entry.hash || sha256(lf) === entry.hash || sameAsCommit(manifest.verifiedCommit, entry.path)) {
+      return { ...entry, status: 'same', currentHash: sha256(current), restored: null };
+    }
     return { ...entry, status: 'changed', currentHash: sha256(current), restored: entry.baseline };
   });
 }
