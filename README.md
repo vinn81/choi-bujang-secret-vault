@@ -81,7 +81,7 @@
 | 9 탐지·회수 제안 | 4번 `detect:test` | 정상 조회 `observe` | 10분 안 121건 이상 `propose_revocation`·`burst_read` | 로컬 `detect:test` 6건 통과: 정상 `observe`, 폭주 `propose_revocation`·`burst_read` |
 | 10 복원 | 1번, 2번, 4번 `test:restore` | 대상 한 건 ID·소유자·해시가 사본과 같음 | B의 A 메모 복원 `404`, 사본 해시 불일치 `409` | 학생 확인(2026-10-13): B 메모 한 건 복원 `200`·`restored: true`, 제목 원래대로, `same_owner`·`same_hash` 모두 `true`, `audit_rows` 1, A의 B 메모 복원 `404 backup_not_found`, 비로그인 복원 `401`. 사본 해시 불일치 `409`는 로컬 시험만 |
 
-복구 뒤 결과의 출처(2026-10-13): "학생 PC 묶음"은 학생이 PC에서 `npm.cmd run bundle`로 배포 주소에 실제로 보낸 요청의 결과입니다. "로컬"은 `5a90be1`에서 다시 실행한 시험이며, 판정기·탐지 시험은 가상 요청 연습입니다. 정책 사본은 `npm.cmd run policy:diff`로 다시 읽어 `사본 검증: 통과`였고, 남은 차이는 10단계에서 일부러 더한 `allowedRoutes`의 `POST /api/restore`뿐입니다. 학습 DB의 정책 복원(`policy:restore` 적용)은 되돌릴 차이가 없어 실행하지 않았습니다.
+복구 뒤 결과의 출처(2026-10-13): "학생 PC 묶음"은 학생이 PC에서 `npm.cmd run bundle`로 배포 주소에 실제로 보낸 요청의 결과입니다. "로컬"은 `5a90be1`에서 다시 실행한 시험이며, 판정기·탐지 시험은 가상 요청 연습입니다. 정책 사본은 `npm.cmd run policy:diff`로 다시 읽어 `사본 검증: 통과`였고, `allowedRoutes`는 9단계 검증 정책과 같게 되돌려 차이가 없습니다. 학습 DB의 정책 복원(`policy:restore` 적용)은 되돌릴 차이가 없어 실행하지 않았습니다.
 
 재인증 전 실제 자료 차단(7단계)과 운영 엔진의 실제 회수·경과 시간(9단계)은 제공 엔진이 저장소에 없어 복구 뒤에도 미실행이며 심판이 확인합니다.
 
@@ -143,8 +143,8 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 
 - 실제 배포 주소: `https://choi-bujang-secret-vault-phi.vercel.app`
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
-- 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`, `POST /api/restore`
-- 복원 경로(`restoreRoute`): `POST /api/restore`
+- 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id` (9단계 검증 정책과 같음)
+- 복원 경로(`restoreRoute`): `POST /api/restore` (허용 경로 목록은 바꾸지 않고 이 칸에만 적음)
 - 단계: `10`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
 - `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
@@ -173,7 +173,7 @@ npm.cmd run policy:diff
 npm.cmd run test:restore
 ```
 
-정상 결과는 `사본 검증: 통과`와 복원 시험 6건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 저장점에서 `allowedRoutes`에 `POST /api/restore`를 더해 `policy:diff`가 이 정책 항목 차이를 보여 줍니다. 심판 통과 뒤 검증 사본을 10단계 커밋으로 갱신하기 전에는 `policy:restore`를 실행하면 이 경로가 허용 목록에서 빠지므로 미리보기를 확인하고 적용하지 않습니다.
+정상 결과는 `사본 검증: 통과`와 복원 시험 6건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 복원 경로는 `restoreRoute`에만 적고 `allowedRoutes`는 9단계 검증 정책 그대로 두므로 `policy:diff`는 `사본과 차이가 없습니다`여야 합니다.
 
 9단계 탐지 함수를 확인합니다.
 
