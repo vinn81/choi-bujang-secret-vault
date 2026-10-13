@@ -1,5 +1,7 @@
 import {
   authorizeNotesRequest,
+  denyOutsideZone,
+  markResource,
   noteFields,
   notesEndpoint,
   requestBody,
@@ -106,8 +108,10 @@ export async function handleNoteById(request, response, {
     response.setHeader('Allow', 'GET, PUT, DELETE');
     return sendJson(response, 405, { error: 'method_not_allowed' });
   }
+  const resourceId = markResource(response, request.method, '/api/notes/:id');
   const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
   if (!auth) return undefined;
+  if (denyOutsideZone(response, auth.login, resourceId)) return undefined;
   const id = noteId(request);
   if (!validNoteId(id)) return sendJson(response, 400, { error: 'invalid_note_id' });
   const endpoint = notesEndpoint(auth.supabaseUrl);

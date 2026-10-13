@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 7단계 — 평소와 다른 접속은 다시 확인합니다
+# BYTE BACK 방어전 8단계 — 자료마다 갈 수 있는 구역을 나눕니다
 
-브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리하고, 판정기가 등록 기기의 읽기만 허용하며 평소와 다른 복합 접속에는 다시 로그인을 요구하는 7단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
+브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조하는 8단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
 ## 현재 작동
 
@@ -10,6 +10,8 @@
 - Auth용 Project URL과 publishable key 값은 정적 화면 코드에 두지 않고 서버 환경설정에서 전달합니다.
 - 판정기(`src/decider.mjs`)는 `deviceRegistered`가 `true`인 기기의 내 메모 읽기만 허용하고, 미등록이거나 값이 없으면 `device_not_registered`로 거부합니다.
 - 판정기는 엔진이 검증한 `judge_fixture` 신호에서 이상 시각·처음 보는 네트워크·대량 읽기가 모두 겹치면 `step_up`·`step_up_required`를 돌려줍니다. 다른 출처의 신호는 신뢰하지 않습니다.
+- 자원은 `src/resources.mjs`에서 `notes.own`(내 메모)과 `notices.instructor`(강사 공지, 자료·API 없음)로 나뉩니다. 판정기 `resource_zone`은 자기 메모 읽기·수정만 허용하고, 강사 공지 수정은 `instructor_role_required`, 표에 없거나 쿼리가 붙은 경로는 `route_not_allowed`로 거부합니다.
+- 자료 API는 응답에 `X-Resource-Id`를 붙이고, 검증된 로그인 종류·사용자 ID가 구역과 맞지 않으면 `403`으로 거부합니다. 소유자는 계속 `owner_id`로 확인하며 본문·쿼리의 `role`·`owner_id`는 믿지 않습니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
@@ -27,6 +29,14 @@
 ## 보너스 XDR xdr-02
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
+
+## 8단계 자원 구역
+
+- 판정기는 엔진이 확인한 `subjectId`·`deviceId`·`method`·`route`·`path`·`service`가 서로 맞고 `queryLength`가 0일 때만 구역 규칙을 적용합니다. `:id` 자리에는 자료 ID 한 칸만 받습니다.
+- 판정기는 가명 `subjectId`로 메모 주인을 알 수 없습니다. B가 A 메모를 여는 요청은 자료 API가 `owner_id` 조건으로 `404`를 돌려 막습니다.
+- 강사 권한을 저장한 자료가 없고 판정 계약에 역할 항목이 없어, 강사 공지 수정은 누구에게도 허용하지 않습니다.
+
+로컬 확인(2026-10-13): A 자기 메모 목록·읽기·수정 `allow`/`200`, B의 A 메모 읽기·수정 `404`, 쿼리 `owner_id` 위조 시 메모 0건, 본문 `role` 섞인 수정 `400`, 알 수 없는 로그인 종류 `403`, 학생 공지 수정 `deny`·`instructor_role_required`. 가상 요청 연습이며 심판 판정이 아닙니다.
 
 ## 7단계 평소와 다른 접속 재확인
 
@@ -71,9 +81,9 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 - 실제 배포 주소: `https://choi-bujang-secret-vault-phi.vercel.app`
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
 - 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`
-- 단계: `7`
+- 단계: `8`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
-- `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`
+- `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
 
 ## 확인 기록
 

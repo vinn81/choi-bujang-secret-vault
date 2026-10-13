@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![5, 6, 7].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6, 7, 8].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -119,6 +119,31 @@ export async function runAttackChecks(config) {
           attackId: 'step_up_live_block',
           expected: '재로그인 전 실제 자료 차단과 새 로그인 뒤 허용',
           observed: '미실행 · 제공 엔진이 저장소에 없음',
+        },
+      );
+    }
+    // 8단계: 자원 구역 규칙을 로컬 판정기에 넣은 결과입니다. 남의 메모 차단은 아래 자료 API 점검과 학생 확인으로 봅니다.
+    if (config.step >= 8) {
+      const zone = overrides => decide({ ...normal, requestId: crypto.randomUUID(), ...overrides });
+      const ownEdit = await zone({ method: 'PUT', path: '/notes/demo', route: 'PUT /notes/:id' });
+      const noticeEdit = await zone({ service: 'notices', method: 'PUT', path: '/notices/demo',
+        route: 'PUT /notices/:id' });
+      const featurePath = await zone({ path: '/notes/export/all', route: 'GET /notes/:id' });
+      deviceChecks.push(
+        {
+          attackId: 'own_note_zone',
+          expected: '등록 기기의 자기 메모 수정 가상 요청은 allow',
+          observed: `로컬 판정기 ${ownEdit.decision} · ${ownEdit.reasonCode}`,
+        },
+        {
+          attackId: 'student_notice_edit',
+          expected: '일반 학생의 강사 공지 수정은 deny · instructor_role_required',
+          observed: `로컬 판정기 ${noticeEdit.decision} · ${noticeEdit.reasonCode}`,
+        },
+        {
+          attackId: 'unknown_feature_path',
+          expected: '표에 없는 기능 경로(/notes/export/all)는 deny · route_not_allowed',
+          observed: `로컬 판정기 ${featurePath.decision} · ${featurePath.reasonCode}`,
         },
       );
     }

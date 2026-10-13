@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
+import { resourceIdForApi } from '../src/resources.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/u;
@@ -84,6 +85,25 @@ export async function authorizeNotesRequest(request, response, {
     sendJson(response, 500, { error: 'server_not_configured' });
     return null;
   }
+}
+
+// 8단계: 요청마다 서버가 자원 구역 표에서 찾은 자원 ID를 응답 헤더에 표시합니다.
+export function markResource(response, method, apiRoute) {
+  const resourceId = resourceIdForApi(method, apiRoute);
+  if (resourceId) response.setHeader('X-Resource-Id', resourceId);
+  return resourceId;
+}
+
+// 8단계: 판정기를 통과해도 자료 API가 검증된 로그인과 자원 구역을 다시 대조합니다.
+// 화면 메뉴나 요청 본문·쿼리의 role·owner_id는 읽지 않습니다. 소유자는 아래 owner_id 조건과 응답 행 검사로 확인합니다.
+// 강사 권한을 저장한 자료가 없으므로 강사 공지 같은 다른 구역은 모두 거부합니다.
+const ZONE_LOGIN_KINDS = Object.freeze({ 'notes.own': new Set(['student', 'judge']) });
+
+export function denyOutsideZone(response, login, resourceId) {
+  if (ZONE_LOGIN_KINDS[resourceId]?.has(login?.kind) && UUID.test(login.userId ?? '')) return false;
+  const error = resourceId === 'notices.instructor' ? 'instructor_role_required' : 'resource_zone_denied';
+  sendJson(response, 403, { error });
+  return true;
 }
 
 export function notesEndpoint(supabaseUrl) {
@@ -198,8 +218,10 @@ export async function handleNotes(request, response, {
     return sendJson(response, 405, { error: 'method_not_allowed' });
   }
   if (authConfigRequested(request)) return sendAuthConfig(response, env);
+  const resourceId = markResource(response, request.method, '/api/notes');
   const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
   if (!auth) return undefined;
+  if (denyOutsideZone(response, auth.login, resourceId)) return undefined;
   try {
     if (request.method === 'POST') return await createNote(request, auth, response, fetchImpl);
     return await listNotes(auth, response, fetchImpl);
