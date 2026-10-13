@@ -18,13 +18,15 @@
 - 학생 로그인은 서버가 승인한 기기의 세션(`x-device-session`)이 있어야 메모·복원 API가 열립니다. 없으면 자료 조회 전에 `403 device_not_approved`입니다.
 - 탈환 작전실(`GET /api/ops`, 로그인·승인 기기 필요)은 판정기·탐지를 서버에서 직접 실행한 결과, 내 기기 승인 상태와 복원 감사 기록(DB), 복구 기준 버전을 출처와 함께 보여 주고 운영 엔진 집행은 미실행으로 표시합니다. 메모 본문은 보여 주지 않고 기록 ID는 가립니다.
 - 작전실의 "1~11단계 실측 재확인"은 정상·금지 요청을 실제로 보내 기대·실제 결과·요청 ID·확인 시각을 한 표로 남기고 JSON으로 내려받게 합니다. 41종 총공세처럼 실행하지 않은 시험은 미실행으로 남깁니다.
-- `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
+- `/data.json`은 정적 파일 대신 `api/data.js`가 빈 메모 목록(`notes: []`)으로 응답합니다(`vercel.json` rewrites). `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
+- 서버 요청 기록: `/api/notes`, `/api/notes/:id`, `/api/ops`, `/data.json`이 받은 요청마다 요청 ID(`x-request-id`, 없으면 서버가 만듦)·점검 이름(`x-aleph-attack-id`)·방법·경로·상태·소유자 키(비로그인은 없음)만 `access_log` 표에 남기고 응답 머리에 `X-Request-Id`를 붙입니다. 메모 본문·토큰은 남기지 않으며, 기록 저장이 실패해도 응답은 그대로 나갑니다. 작전실 「서버 요청 기록」 카드는 본인·비로그인 기록 최근 50건과 같은 목록에서 센 수치를 보여 주고, 표를 읽지 못하면 그 카드만 미실행으로 둡니다.
+- 자기 점검(`src/attack-check.mjs`)은 묶음 실행 중 네트워크 요청을 보내지 않고 20건 모두 `not_run`으로 적습니다. 비로그인 거부·메모 0건 같은 실측은 배포 서버의 요청 기록과 작전실 실측 재확인 표에서 확인합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 
 ## 설치·실행·중지·복구 안내
 
-기준 커밋은 마지막으로 심판이 검사해 통과한 `951c4f6`(11단계)입니다. 12단계 탈환 작전실(`api/ops.js`, 작전실 화면, 실측 재확인)은 그 뒤 12단계 저장점 커밋에서 더했고 아직 심판 검사 전입니다.
+기준 커밋은 12단계 심판 검사를 통과한 `882e5be`입니다(학생이 제출 화면에서 확인한 결과). 이 README 갱신 커밋은 코드 변경이 없습니다.
 
 ### 출처 구분
 
@@ -32,7 +34,7 @@
 |---|---|---|
 | 제공 엔진: **ALEPH SDP 엔진** (운영 측 제공, 이 저장소에 없음) | 신원·기기·경로 확인, 미등록 기기 릴레이 차단, 학생 판정기 `decide(request)` 호출(`aleph.decision.v1` 계약), 탐지 사건 전달과 회수 집행, 심판 토큰 발급 | `docs/DECIDER_REQUEST.md`가 설명하는 `student-kit/sdp-core/decision-contract.mjs`, `aleph.config.json`의 `judgeIssuer`(운영 측이 채움) |
 | 시작 틀 (`ChoiTimo/aleph-defense-starter`, 초기 커밋 `241e44e`) | 제출 묶음, 판정기·탐지 연습 시험, 배포 정보 생성, 로그인 토큰 검증, 계약 문서, XDR 연습 사건 | `scripts/bundle.mjs`·`decider-test.mjs`·`detect-test.mjs`·`fixture-7.mjs`·`xdr-run.mjs`·`build-public.mjs`·`deployment-identity.mjs`, `src/verify-login.mjs`, `docs/`, `xdr/fixtures/`, `package/` |
-| 학생 몫 | 판정기 규칙(`device_registered`·`step_up_required`·`resource_zone`), 탐지 규칙(`burst_read`)과 회수 제안, 자원 구역, 자료실 API, 정책·메모 복구, 접속 앱(설치형 화면·패스키 기기 승인), 자기 점검, 시험 | `src/decider.mjs`·`detect.mjs`·`resources.mjs`·`device.mjs`·`device-flow.mjs`·`attack-check.mjs`, `api/notes.js`·`api/notes/[id].js`·`api/restore.js`·`api/device/`, `public/`, `scripts/policy-*.mjs`, `policy/`, `xdr/brute-force/`·`xdr/web-injection/`, `test/` |
+| 학생 몫 | 판정기 규칙(`device_registered`·`step_up_required`·`resource_zone`), 탐지 규칙(`burst_read`)과 회수 제안, 자원 구역, 자료실 API, 정책·메모 복구, 접속 앱(설치형 화면·패스키 기기 승인), 탈환 작전실과 서버 요청 기록, 자기 점검, 시험 | `src/decider.mjs`·`detect.mjs`·`resources.mjs`·`device.mjs`·`device-flow.mjs`·`access-log.mjs`·`attack-check.mjs`, `api/notes.js`·`api/notes/[id].js`·`api/ops.js`·`api/data.js`·`api/restore.js`·`api/device/`, `public/`, `scripts/policy-*.mjs`, `policy/`, `xdr/brute-force/`·`xdr/web-injection/`, `test/` |
 
 학생 판정기와 탐지 규칙은 ALEPH SDP 엔진이 부르는 함수입니다. 이 저장소만으로는 엔진의 실제 판정·회수 집행을 실행할 수 없으며, `npm run decider:test`·`detect:test`는 가상 요청 연습입니다.
 
@@ -40,16 +42,18 @@
 
 1. Node.js 22 이상을 준비하고 저장소를 받아 `npm ci`로 의존성을 설치합니다.
 2. Supabase 학습 DB에서 `public.notes`의 PUBLIC·anon·authenticated 직접 권한이 회수돼 있는지 확인합니다(5단계 기록).
-3. Supabase SQL Editor에서 `policy/restore-backup.sql`, `policy/device-approval.sql`을 차례로 실행해 사본·감사·기기 표를 만듭니다. 파일 안의 주석 예시(사본 넣기, 기기 승인)는 필요할 때 따로 실행합니다.
+3. Supabase SQL Editor에서 `policy/restore-backup.sql`, `policy/device-approval.sql`, `policy/access-log.sql`을 차례로 실행해 사본·감사·기기·서버 요청 기록 표를 만듭니다. 파일 안의 주석 예시(사본 넣기, 기기 승인)는 필요할 때 따로 실행합니다.
 4. Vercel 프로젝트에 이 저장소를 연결하고 **Settings → Environment Variables**에 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`의 값을 직접 넣습니다. 값은 저장소·README·제출 묶음에 적지 않습니다.
 5. 새 주소로 배포했다면 `aleph.config.json`의 `publicAppUrl`을 그 주소로 맞춥니다. 패스키는 이 주소의 호스트 이름으로 만들어지므로 다르면 기기 승인이 실패합니다. `judgeIssuer`는 운영 측 값이라 바꾸지 않습니다.
 
 ### 실행
 
-1. 로컬 시험: `npm.cmd run test:notes`, `test:restore`, `test:device`, `test:ops`, `test:r5`, `decider:test`, `fixture:7`, `detect:test`, `xdr:test`, `policy:diff`
+1. 로컬 시험: `npm.cmd run test:notes`, `test:restore`, `test:device`, `test:ops`, `test:access`, `decider:test`, `fixture:7`, `detect:test`, `xdr:test`, `policy:diff`
+   - 알려진 실패(시작 틀 시험이라 고치지 않음): `test:r5`는 묶음이 쓰기 요청(POST·PUT·DELETE)을 보내길 기대하지만 12단계 심판 격리 환경은 GET·HEAD만 허용해 묶음이 요청을 보내지 않습니다. `test:package`는 시작 틀 함수 목록에 10~12단계에서 더한 `api/restore.js`·`api/device/`·`api/ops.js`·`api/data.js`가 없어 실패합니다.
 2. 배포 화면: 로그인 → "이 기기 승인 요청" → SQL Editor에서 그 기기만 `approved = true` → "승인 확인하고 자료실 열기" → 메모 자료실과 탈환 작전실이 열립니다.
 3. 작전실의 "1~11단계 실측 재확인"으로 정상·금지 요청의 실제 결과를 요청 ID·시각과 함께 표로 남깁니다.
-4. 제출: `bundle-notes.json`(커밋하지 않음)에 설명 세 줄을 적고 `npm.cmd run bundle`을 실행합니다.
+4. 제출: `bundle-notes.json`(커밋하지 않음)에 설명 세 줄을 적고 `npm.cmd run bundle`을 실행합니다. 제출 화면의 「이번 단계에서 한 일」도 묶음 설명으로 쓰이므로 출처(ALEPH SDP 엔진·학생 몫)와 실측·미실행 구분을 적고 통과 주장 문구는 넣지 않습니다.
+5. 제출 전 `https://choi-bujang-secret-vault-phi.vercel.app/aleph.json`의 `commit`이 제출할 커밋과 같은지(배포 완료) 확인합니다.
 
 ### 중지
 
@@ -63,7 +67,7 @@
 1. 정책 파일: `npm.cmd run policy:diff`로 검증 사본과의 차이를 보고, `npm.cmd run policy:restore`의 미리보기와 확인 번호를 확인한 뒤 `-- --apply --confirm=<확인 번호>`로 되돌립니다. 기록은 `policy/restore-audit.log`에 덧붙습니다.
 2. 코드 되돌리기: 문제 커밋만 `git revert <커밋>`으로 되돌리고 `git reset --hard`는 쓰지 않습니다.
 3. 메모 한 건: `notes_backup`에 검증된 사본이 있으면 `POST /api/restore`로 그 한 건만 되돌립니다. 모든 시도는 `notes_restore_audit`에 남습니다.
-4. 복구 뒤 재확인: 작전실 실측 재확인과 `npm.cmd run bundle`의 자기 점검으로 1~11단계 정상·금지 결과를 다시 봅니다.
+4. 복구 뒤 재확인: 작전실 실측 재확인 표와 「서버 요청 기록」 카드로 1~11단계 정상·금지 결과를 다시 봅니다. `npm.cmd run bundle`의 자기 점검은 요청을 보내지 않으므로 모두 `not_run`입니다.
 
 ## 보너스 XDR xdr-01
 
@@ -230,9 +234,10 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 
 ```powershell
 npm.cmd run test:ops
+npm.cmd run test:access
 ```
 
-정상 결과는 4건 통과입니다. 배포 화면에서는 기기 승인 뒤 작전실 카드의 수치가 함께 표시된 가린 기록 목록과 맞고, "1~11단계 실측 재확인"의 상태 줄이 `불일치 0건`이어야 합니다. 거부되어야 할 결과는 비로그인 `GET /api/ops` `401`, 기기 세션 없는 학생 요청 `403`입니다.
+정상 결과는 작전실 6건, 서버 요청 기록 4건 통과입니다. 배포 화면에서는 기기 승인 뒤 작전실 카드의 수치가 함께 표시된 가린 기록 목록과 맞고, 「서버 요청 기록」에 비로그인 요청이 요청 ID와 함께 보이며, "1~11단계 실측 재확인"의 상태 줄이 `불일치 0건`이어야 합니다. 거부되어야 할 결과는 비로그인 `GET /api/ops` `401`, 기기 세션 없는 학생 요청 `403`입니다. `npm.cmd run bundle`의 자기 점검은 20건 모두 `not_run`이어야 합니다.
 
 11단계 기기 승인 흐름을 확인합니다.
 
