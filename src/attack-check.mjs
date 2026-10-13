@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 5) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -77,7 +77,31 @@ export async function runAttackChecks(config) {
     inspect(itemPath, { method: 'DELETE' }),
   ]);
 
+  // 6단계: 로컬 판정기에 가상 요청 두 건을 실제로 넣어 본 결과만 기록합니다(심판 판정 아님).
+  const deviceChecks = [];
+  if (config.step >= 6) {
+    const { decide } = await import('./decider.mjs');
+    const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
+    const { normal } = fixtureRequests();
+    const registered = await decide(normal);
+    const unregistered = await decide({ ...normal, requestId: crypto.randomUUID(),
+      deviceRegistered: false });
+    deviceChecks.push(
+      {
+        attackId: 'registered_device_read',
+        expected: '등록 기기의 내 메모 읽기 가상 요청은 allow',
+        observed: `로컬 판정기 ${registered.decision} · ${registered.reasonCode}`,
+      },
+      {
+        attackId: 'unregistered_device_read',
+        expected: '미등록 기기의 가상 요청은 deny · device_not_registered',
+        observed: `로컬 판정기 ${unregistered.decision} · ${unregistered.reasonCode}`,
+      },
+    );
+  }
+
   return [
+    ...deviceChecks,
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
