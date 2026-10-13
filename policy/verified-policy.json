@@ -1,0 +1,24 @@
+{
+  "schema": "aleph.policy.verified.v1",
+  "label": "9단계 저장점(심판 통과)",
+  "verifiedCommit": "409340362c64d8625c27a30aa830d87bd7c6c9c2",
+  "verifiedAt": "2026-10-13T03:39:46+00:00",
+  "note": "침해 전에 검증한 저장소 안전 정책 사본입니다. aleph.config.json은 policyKeys에 적은 정책 항목만 비교·복원하고 단계·주소·judgeIssuer 같은 다른 설정은 보존합니다. 학습 DB 권한과 메모 자료는 포함하지 않습니다.",
+  "files": {
+    "src/decider.mjs": "13f66046111883c233731e43b3bbdf76ea668985d5670fe4d2a6b8965ec33f5a",
+    "src/resources.mjs": "0d2eccd72a349543ceb3705f85954ce69f38c9320d897cfc8fec5bc1863005c6",
+    "src/detect.mjs": "73f5a3a52405f47118735cd15a54d6cf3e278fd57374252a1bc1bf3ec3677f73",
+    "src/verify-login.mjs": "c8fa6842c7904f9430e002bd92207d4aef9d54739a712f716153a2cb96e7389b",
+    "api/notes.js": "fd892f5855d784128e7f94d4059dae450e085ae488562051dbc9a0fa13379a39",
+    "api/notes/[id].js": "c0306f1f8c1e039c1657bb9488d7591d40babf516db4250281edcbf19ea2ef7f",
+    "aleph.config.json": {
+      "sha256": "c5f51a8456171ddea7ede6c75907e8a407c42cb38c50802aad33541fd9c243aa",
+      "policyKeys": [
+        "identityProvider",
+        "allowedRoutes",
+        "originalApiUrl"
+      ]
+    },
+    "vercel.json": "83173ab8a0ac1bb98ac44dd64b1933c1ee5496a6b7c8205fffa769dcd99116a6"
+  }
+}

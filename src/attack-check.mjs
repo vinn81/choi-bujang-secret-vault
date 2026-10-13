@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8, 9].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6, 7, 8, 9, 10].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -67,6 +67,12 @@ export async function runAttackChecks(config) {
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
   });
+  // 10단계: 로그인 없이 복원 경로를 부르면 자료 조회 전에 401이어야 합니다.
+  const anonymousRestore = config.step >= 10 ? await inspect('/api/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: '00000000-0000-4000-8000-000000000000' }),
+  }) : null;
   const [anonymousGet, anonymousPut, anonymousDelete] = await Promise.all([
     inspect(itemPath),
     inspect(itemPath, {
@@ -206,6 +212,18 @@ export async function runAttackChecks(config) {
       expected: '비로그인 POST /api/notes는 HTTP 401',
       observed: `POST /api/notes HTTP ${anonymousCreate.status}`,
     },
+    ...(anonymousRestore ? [
+      {
+        attackId: 'anonymous_restore',
+        expected: '비로그인 POST /api/restore는 HTTP 401',
+        observed: `POST /api/restore HTTP ${anonymousRestore.status}`,
+      },
+      {
+        attackId: 'restore_owner_hash_live',
+        expected: '시험 계정 B 메모 한 건 복원 뒤 ID·소유자·내용 해시가 사본과 같음, B의 A 메모 복원 404',
+        observed: '미실행 · 로그인 토큰이 필요한 학생 직접 확인 항목',
+      },
+    ] : []),
     {
       attackId: 'anonymous_note_item',
       expected: '비로그인 GET·PUT·DELETE /api/notes/:id는 모두 HTTP 401',

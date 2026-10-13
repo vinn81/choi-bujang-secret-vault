@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 9단계 — 도플갱어를 찾고 권한을 거둡니다
+# BYTE BACK 방어전 10단계 — 백업에서 자료실을 되살립니다
 
-브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하는 9단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
+브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살리는 10단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
 ## 현재 작동
 
@@ -13,6 +13,7 @@
 - 자원은 `src/resources.mjs`에서 `notes.own`(내 메모)과 `notices.instructor`(강사 공지, 자료·API 없음)로 나뉩니다. 판정기 `resource_zone`은 자기 메모 한 건 읽기·수정만 허용하고, 여러 사람의 자료를 한꺼번에 여는 메모 전체 목록(`GET /notes`)과 공지 쓰기는 누구에게나 거부합니다. 강사 공지 수정은 `instructor_role_required`, 표에 없거나 쿼리가 붙은 경로는 `route_not_allowed`로 거부합니다.
 - 자료 API는 응답에 `X-Resource-Id`를 붙이고, 검증된 로그인 종류·사용자 ID가 구역과 맞지 않으면 `403`으로 거부합니다. 소유자는 계속 `owner_id`로 확인하며 본문·쿼리의 `role`·`owner_id`는 믿지 않습니다.
 - 탐지 함수(`src/detect.mjs`)는 가상 사건에서 가명 사용자·기기·요청 종류·판정·시각만 읽고, 같은 사용자의 `GET`이 10분 안에 120건을 넘을 때만 `propose_revocation`·`burst_read`를 돌려줍니다. `revocationProposal()`은 별도 결과로 대상 사용자와 확인된 기기 하나(없거나 섞이면 `null`)를 담은 회수 제안을 만듭니다.
+- `npm run policy:diff`·`policy:restore`는 검증한 정책 사본과의 차이를 보여 주고 확인 번호를 거쳐서만 정책 파일을 되돌립니다. `POST /api/restore`는 비공개 사본 `notes_backup`에서 로그인한 본인의 메모 한 건만 ID·소유자·내용 해시를 대조해 복원하고 감사 기록을 덧붙입니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
@@ -30,6 +31,55 @@
 ## 보너스 XDR xdr-02
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
+
+## 10단계 백업에서 되살리기
+
+### 정책 복원
+
+- `npm.cmd run policy:diff`: 침해 전 검증한 정책 사본(`policy/verified-policy.json`, 9단계 저장점 `4093403`)을 지문으로 검증한 뒤 현재 정책과의 차이만 보여 줍니다. 사본이 없거나 검증에 실패하면 중단합니다.
+- `npm.cmd run policy:restore`: 바뀔 항목과 확인 번호를 먼저 보여 주고, `-- --apply --confirm=<확인 번호>`로 다시 실행할 때만 사본 목록의 정책 파일을 되돌립니다. `aleph.config.json`은 정책 항목(`identityProvider`·`allowedRoutes`·`originalApiUrl`)만 되돌리고, 다른 파일과 설정은 보존합니다. 기록은 `policy/restore-audit.log`에 덧붙이기만 합니다.
+
+### 메모 한 건 복원
+
+- 서비스: Vercel 서버 함수 `api/restore.js`
+- 경로: `POST /api/restore`, 본문 `{ "id": "<메모 UUID>" }` 하나만 받습니다. 로그인(Bearer)이 필요합니다.
+- 비공개 사본 표 `notes_backup`에서 검증된 로그인 사용자의 그 ID 한 건만 찾고, ID·소유자·내용 해시(제목 + 줄바꿈 + 본문의 SHA-256)를 대조한 뒤 그 한 건만 씁니다. 다시 읽어 같은지 확인하고, 응답에는 내용 없이 `id`·`restored`·`contentSha256`만 돌려줍니다.
+- 다른 메모와 다른 사용자의 같은 ID 메모는 건드리지 않습니다. 감사 기록 표 `notes_restore_audit`에는 메모 ID·소유자·복원 전후 해시만 덧붙입니다.
+- 사본 표와 감사 표는 `policy/restore-backup.sql`을 Supabase SQL Editor에서 학생이 직접 실행해 만듭니다. 두 표 모두 anon·authenticated 권한이 없고, 감사 표는 수정·삭제 권한이 없습니다.
+
+로컬 확인(2026-10-13): `npm.cmd run test:restore` 4건 통과. 시험 계정 B의 가상 메모 한 건이 사본과 같은 ID·소유자·내용 해시로 복원되고, B의 다른 메모와 A 메모는 그대로, 감사 기록은 덧붙기만 했습니다. B의 A 메모 복원 `404`, 본문 추가 필드 `400`, 사본 해시 불일치 `409`, 무로그인 `401`. 학습 DB의 사본 표 생성과 배포 경로의 실제 복원은 미실행입니다. 가상 자료 연습이며 심판 판정이 아닙니다.
+
+### 복구 뒤 1~9단계 재확인 순서
+
+복구(정책 복원 → 메모 한 건 복원)를 마친 뒤 아래 순서로 다시 실행합니다. 결과 칸은 실제로 실행하고 본 값만 적고, 실행하지 않은 시험은 미실행으로 둡니다. 판정기·탐지 시험은 가상 요청 연습이며 심판 판정이 아닙니다.
+
+1. 정책이 돌아왔는지: `npm.cmd run policy:diff` → `사본 검증: 통과`, `요약: 사본과 차이가 없습니다.`
+2. 자료가 돌아왔는지: Supabase SQL Editor에서 내용 없이 해시만 비교합니다.
+   ```sql
+   select b.id, n.owner_id = b.owner_id as same_owner,
+          encode(sha256(convert_to(n.title || E'\n' || n.content, 'UTF8')), 'hex') = b.content_sha256 as same_hash
+   from public.notes_backup b left join public.notes n on n.id = b.id;
+   select count(*) as audit_rows from public.notes_restore_audit;
+   ```
+   복원한 메모는 `same_owner`·`same_hash`가 모두 `true`, `audit_rows`는 복원 횟수만큼 늘어나야 합니다.
+3. DB 직접 권한(5단계): 같은 SQL Editor에서 `public.notes`의 권한을 조회합니다. anon·authenticated는 SELECT·INSERT·UPDATE·DELETE가 모두 `false`, service_role은 모두 `true`여야 합니다.
+4. 로컬 시험: `npm.cmd run test:notes`, `npm.cmd run test:restore`, `npm.cmd run test:r5`, `npm.cmd run decider:test`, `npm.cmd run fixture:7`, `npm.cmd run detect:test`, `npm.cmd run xdr:test`
+5. 배포 점검: `npm.cmd run bundle` 뒤 `artifacts\submission.json`의 `attackAttempts`를 봅니다(PC에서 실행해야 배포 주소에 닿습니다).
+6. 화면 확인: A로 로그인해 메모 목록과 `/api/notes` 응답 헤더 `X-Resource-Id: notes.own`을 보고, B로 로그인한 Console에서 A 메모 ID를 직접 요청합니다.
+
+| 단계 | 확인 방법 | 정상 요청 결과 | 거부되어야 할 요청 결과 | 복구 뒤 결과 |
+|---|---|---|---|---|
+| 1~2 공개 자료 정리 | 5번 `static_notes_removed` | `/data.json` `200`, 메모 0건 | 공개 파일에 메모가 보이면 실패 | 미실행 |
+| 3 로그인 | 5번 `anonymous_notes_*`, 4번 `test:notes` | 로그인한 A의 목록·추가·수정·삭제 성공 | 무로그인 목록·추가·조회·수정·삭제 `401` | 미실행 |
+| 4 소유자 검사 | 6번, 4번 `test:notes` | A 자기 메모 `200` | B의 A 메모 읽기·수정·삭제 `404`, 소유자 변경 `400` | 미실행 |
+| 5 서버 경유·DB 권한 | 3번, 5번 `direct_original_notes` | 서버 함수 경유 CRUD 성공 | 원본 API 직접 요청 `401`·`403`, anon·authenticated 권한 `false` | 미실행 |
+| 6 등록 기기 | 4번 `decider:test` | 등록 기기 읽기 `allow` | 미등록 기기 `deny`·`device_not_registered` | 미실행 |
+| 7 재확인 | 4번 `decider:test`, `fixture:7` | 정상 사건·재인증한 사건 `allow` | 복합 이상 사건 `step_up`·`step_up_required` | 미실행 |
+| 8 자원 구역 | 4번 `test:notes`, 5번 `own_note_zone` 등, 6번 | 메모 한 건 읽기·수정 `allow`, 화면 목록 `200` | 메모 전체 목록·공지 쓰기·알 수 없는 경로 `deny`, 구역이 맞지 않는 로그인 `403` | 미실행 |
+| 9 탐지·회수 제안 | 4번 `detect:test` | 정상 조회 `observe` | 10분 안 121건 이상 `propose_revocation`·`burst_read` | 미실행 |
+| 10 복원 | 1번, 2번, 4번 `test:restore` | 대상 한 건 ID·소유자·해시가 사본과 같음 | B의 A 메모 복원 `404`, 사본 해시 불일치 `409` | 미실행 |
+
+재인증 전 실제 자료 차단(7단계)과 운영 엔진의 실제 회수·경과 시간(9단계)은 제공 엔진이 저장소에 없어 복구 뒤에도 미실행이며 심판이 확인합니다.
 
 ## 9단계 탐지와 회수 제안
 
@@ -89,8 +139,9 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 
 - 실제 배포 주소: `https://choi-bujang-secret-vault-phi.vercel.app`
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
-- 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`
-- 단계: `9`
+- 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`, `POST /api/restore`
+- 복원 경로(`restoreRoute`): `POST /api/restore`
+- 단계: `10`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
 - `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
 
@@ -110,6 +161,15 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 위 기록은 학생의 실행·관찰과 로컬 자기 점검이며 심판 판정이 아닙니다.
 
 ## 다시 확인하기
+
+10단계 정책 비교와 메모 한 건 복원을 확인합니다.
+
+```powershell
+npm.cmd run policy:diff
+npm.cmd run test:restore
+```
+
+정상 결과는 `사본 검증: 통과`와 복원 시험 4건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 저장점에서 `allowedRoutes`에 `POST /api/restore`를 더해 `policy:diff`가 이 정책 항목 차이를 보여 줍니다. 심판 통과 뒤 검증 사본을 10단계 커밋으로 갱신하기 전에는 `policy:restore`를 실행하면 이 경로가 허용 목록에서 빠지므로 미리보기를 확인하고 적용하지 않습니다.
 
 9단계 탐지 함수를 확인합니다.
 
