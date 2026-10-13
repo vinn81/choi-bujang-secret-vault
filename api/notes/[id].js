@@ -9,6 +9,7 @@ import {
   supabaseHeaders,
   validNoteId,
 } from '../notes.js';
+import { withAccessLog } from '../../src/access-log.mjs';
 
 function noteId(request) {
   const queryId = request.query?.id;
@@ -127,6 +128,4 @@ export async function handleNoteById(request, response, {
   }
 }
 
-export default function handler(request, response) {
-  return handleNoteById(request, response);
-}
+export default withAccessLog('/api/notes/:id', (request, response) => handleNoteById(request, response));

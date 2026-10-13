@@ -8,6 +8,7 @@
     "test:restore": "node --test test/restore-api.test.mjs",
     "test:device": "node --test test/device-api.test.mjs",
     "test:ops": "node --test test/ops-api.test.mjs",
+    "test:access": "node --test test/access-log.test.mjs",
     "test:r5": "node --test test/r5.test.mjs",
     "test:package": "node --test test/package-starter.test.mjs",
     "bundle": "node scripts/bundle.mjs",

@@ -27,14 +27,20 @@ function fakeDb() {
       { note_id: 'e1a96dca-6a1d-4a52-bee4-d8f63f0f8e5f', owner_id: USER_B, result: 'restored', restored_at: '2026-10-13T04:40:25Z' },
       { note_id: 'e1a96dca-6a1d-4a52-bee4-d8f63f0f8e5f', owner_id: USER_A, result: 'backup_not_found', restored_at: '2026-10-13T05:12:12Z' },
     ],
+    access_log: [
+      { request_id: 'aaaaaaaa-0000-4000-8000-000000000001', attack_id: 'anonymous_notes_list', method: 'GET', route: '/api/notes', status: 401, owner_id: null, created_at: '2026-10-13T05:50:00Z' },
+      { request_id: 'aaaaaaaa-0000-4000-8000-000000000002', attack_id: null, method: 'GET', route: '/api/ops', status: 200, owner_id: USER_B, created_at: '2026-10-13T05:51:00Z' },
+      { request_id: 'aaaaaaaa-0000-4000-8000-000000000003', attack_id: null, method: 'GET', route: '/api/notes', status: 200, owner_id: USER_A, created_at: '2026-10-13T05:52:00Z' },
+    ],
   };
   return {
     async fetch(url) {
       const endpoint = new URL(url);
       const name = endpoint.pathname.split('/').at(-1);
-      const owner = endpoint.searchParams.get('owner_id')?.replace(/^eq\./u, '');
       const fields = endpoint.searchParams.get('select').split(',');
-      return Response.json(tables[name].filter(row => row.owner_id === owner)
+      const either = /^\(owner_id\.eq\.([0-9a-f-]+),owner_id\.is\.null\)$/u.exec(endpoint.searchParams.get('or') ?? '');
+      const owner = either ? either[1] : endpoint.searchParams.get('owner_id')?.replace(/^eq\./u, '');
+      return Response.json(tables[name].filter(row => row.owner_id === owner || (either && row.owner_id === null))
         .map(row => Object.fromEntries(fields.map(field => [field, row[field]]))));
     },
   };
@@ -103,4 +109,29 @@ test('승인된 기기가 없으면 403, 무로그인 401, GET이 아니면 405'
   assert.equal(denied.statusCode, 403);
   assert.equal((await ops({})).statusCode, 401);
   assert.equal((await ops({ authorization: 'Bearer token-b' }, { method: 'POST' })).statusCode, 405);
+});
+
+test('서버 요청 기록은 본인·비로그인 기록만 돌려주고, 수치는 같은 목록에서 센다', async () => {
+  const out = await ops({ authorization: 'Bearer token-b' });
+  const { requests } = out.body;
+  assert.equal(requests.source, 'db');
+  assert.equal(requests.total, requests.records.length);
+  assert.deepEqual(requests.records.map(item => item.requestId),
+    ['aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000002']);
+  assert.equal(requests.anonymous, requests.records.filter(item => item.login === 'anonymous').length);
+  assert.equal(Object.values(requests.byStatus).reduce((sum, count) => sum + count, 0), requests.total);
+  assert.equal(requests.records[0].attackId, 'anonymous_notes_list');
+  assert.equal(JSON.stringify(requests).includes(USER_B), false);
+});
+
+test('요청 기록 표를 읽지 못해도 작전실은 응답하고 그 항목만 미실행으로 표시한다', async () => {
+  const db = fakeDb();
+  const out = output();
+  await handleOps({ method: 'GET', headers: { authorization: 'Bearer token-b' } }, out, { env, verifyAuthorization,
+    verifyDeviceSession: async () => true, now: () => NOW,
+    fetchImpl: async url => (new URL(url).pathname.endsWith('/access_log') ? new Response('{}', { status: 404 }) : db.fetch(url)) });
+  assert.equal(out.statusCode, 200);
+  assert.equal(out.body.requests.source, 'not_run');
+  assert.equal(out.body.requests.total, out.body.requests.records.length);
+  assert.equal(out.body.restore.audit.source, 'db');
 });

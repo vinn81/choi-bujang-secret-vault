@@ -5,6 +5,7 @@ import { detect, revocationProposal } from '../src/detect.mjs';
 import { serviceHeaders, table } from '../src/device.mjs';
 import { fixtureRequests } from '../scripts/fixture-7.mjs';
 import { authorizeNotesRequest, sendJson } from './notes.js';
+import { withAccessLog } from '../src/access-log.mjs';
 
 // 12단계: 탈환 작전실 요약 API(GET /api/ops)입니다. 로그인과 승인된 기기(학생)가 필요합니다.
 // 각 항목에 출처를 붙입니다: server_run(이 요청 때 서버가 가상 요청으로 직접 실행), db(학습 DB 기록), not_run(미실행).
@@ -17,6 +18,20 @@ async function readOwnRows(fetchImpl, supabaseUrl, key, name, select, owner, ord
   url.searchParams.set('select', select);
   url.searchParams.set('owner_id', `eq.${owner}`);
   if (order) url.searchParams.set('order', order);
+  url.searchParams.set('limit', '50');
+  const upstream = await fetchImpl(url, { method: 'GET', headers: serviceHeaders(key), redirect: 'error' });
+  if (!upstream.ok) throw new Error('upstream_failed');
+  const rows = await upstream.json();
+  if (!Array.isArray(rows)) throw new Error('upstream_failed');
+  return rows;
+}
+
+// 12단계 서버 요청 기록: 내 소유자 키로 남은 요청과 비로그인(소유자 없음) 요청을 최근 50건까지 읽습니다.
+async function readAccessLog(fetchImpl, supabaseUrl, key, owner) {
+  const url = table(supabaseUrl, 'access_log');
+  url.searchParams.set('select', 'request_id,attack_id,method,route,status,owner_id,created_at');
+  url.searchParams.set('or', `(owner_id.eq.${owner},owner_id.is.null)`);
+  url.searchParams.set('order', 'created_at.desc');
   url.searchParams.set('limit', '50');
   const upstream = await fetchImpl(url, { method: 'GET', headers: serviceHeaders(key), redirect: 'error' });
   if (!upstream.ok) throw new Error('upstream_failed');
@@ -92,14 +107,19 @@ export async function handleOps(request, response, {
   if (!auth) return undefined;
   const owner = auth.login.userId;
   try {
-    const [credentials, sessions, audit] = await Promise.all([
+    const [credentials, sessions, audit, access] = await Promise.all([
       readOwnRows(fetchImpl, auth.supabaseUrl, auth.supabaseSecretKey, 'device_credentials', 'id,approved,created_at', owner, 'created_at.desc'),
       readOwnRows(fetchImpl, auth.supabaseUrl, auth.supabaseSecretKey, 'device_sessions', 'expires_at', owner, 'expires_at.desc'),
       readOwnRows(fetchImpl, auth.supabaseUrl, auth.supabaseSecretKey, 'notes_restore_audit', 'note_id,result,restored_at', owner, 'restored_at.desc'),
+      // 요청 기록 표를 읽지 못하면(표 미생성 등) 작전실 전체를 멈추지 않고 이 항목만 미실행으로 둡니다.
+      readAccessLog(fetchImpl, auth.supabaseUrl, auth.supabaseSecretKey, owner).catch(() => null),
     ]);
     const devices = credentials.map(row => ({ id: mask(row.id), approved: row.approved === true, createdAt: row.created_at }));
     const activeSessions = sessions.filter(row => Date.parse(row.expires_at) > now()).length;
     const auditRecords = audit.map(row => ({ note: mask(row.note_id), result: row.result ?? 'restored', at: row.restored_at }));
+    // 요청 ID는 묶음·재확인 표의 요청 ID와 대조할 수 있게 그대로 두고, 소유자는 본인/비로그인으로만 표시합니다.
+    const requestRecords = (access ?? []).map(row => ({ requestId: row.request_id, attackId: row.attack_id ?? null,
+      method: row.method, route: row.route, status: row.status, login: row.owner_id ? 'self' : 'anonymous', at: row.created_at }));
     const { detection, proposal } = detectionSummary();
     return sendJson(response, 200, {
       checkedAt: new Date(now()).toISOString(),
@@ -111,6 +131,8 @@ export async function handleOps(request, response, {
           pending: devices.filter(item => !item.approved).length, activeSessions, records: devices },
         liveRevocation: { source: 'not_run', reason: '회수 제안을 집행하는 운영 엔진이 연결되지 않았습니다.' },
       },
+      requests: access === null ? { source: 'not_run', reason: '서버 요청 기록(access_log)을 읽지 못했습니다.', total: 0, byStatus: {}, anonymous: 0, records: [] } : { source: 'db', total: requestRecords.length, byStatus: countBy(requestRecords, item => item.status),
+        anonymous: requestRecords.filter(item => item.login === 'anonymous').length, records: requestRecords },
       restore: {
         verifiedPolicy: { source: 'repository', label: verifiedPolicy.label, commit: short(verifiedPolicy.verifiedCommit),
           verifiedAt: verifiedPolicy.verifiedAt },
@@ -124,6 +146,4 @@ export async function handleOps(request, response, {
   }
 }
 
-export default function handler(request, response) {
-  return handleOps(request, response);
-}
+export default withAccessLog('/api/ops', (request, response) => handleOps(request, response));

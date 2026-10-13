@@ -3,6 +3,7 @@ import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { resourceIdForApi } from '../src/resources.mjs';
 import { checkDeviceSession, deviceSessionHeader } from '../src/device.mjs';
+import { ACCESS_OWNER, withAccessLog } from '../src/access-log.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/u;
@@ -98,6 +99,8 @@ export async function authorizeNotesRequest(request, response, {
       return null;
     }
     const owned = ownerLogin(login);
+    // 12단계 서버 요청 기록: 검증된 소유자 키만 기록에 남깁니다.
+    request[ACCESS_OWNER] = owned.userId;
     if (requireDevice && owned.kind === 'student') {
       const token = deviceSessionHeader(request);
       const approved = verifyDeviceSession
@@ -260,6 +263,4 @@ export async function handleNotes(request, response, {
   }
 }
 
-export default function handler(request, response) {
-  return handleNotes(request, response);
-}
+export default withAccessLog('/api/notes', (request, response) => handleNotes(request, response));

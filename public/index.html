@@ -579,7 +579,7 @@
     const checkLine = item => `${item.matched ? '일치' : '불일치'} · ${item.name}: 기대 ${item.expected}, 결과 ${item.decision ?? item.action}${item.reasonCode ? `·${item.reasonCode}` : ''}`;
 
     function renderOps(data) {
-      const { decider, detection, revocation, restore } = data;
+      const { decider, detection, revocation, restore, requests } = data;
       const devices = revocation.devices;
       const audit = restore.audit;
       const byResult = Object.entries(audit.byResult).map(([key, count]) => `${key} ${count}건`).join(', ') || '없음';
@@ -600,6 +600,11 @@
         opsCard('내 복원 감사 기록', audit.source, [
           `총 ${audit.total}건 (${byResult})`,
           ...audit.records.map(item => `${item.note} · ${item.result} · ${item.at}`),
+        ]),
+        opsCard('서버 요청 기록(최근 50건)', requests.source, [
+          ...(requests.reason ? [requests.reason] : []),
+          `총 ${requests.total}건 (비로그인 ${requests.anonymous}건 · ${Object.entries(requests.byStatus).map(([key, count]) => `HTTP ${key} ${count}건`).join(', ') || '없음'})`,
+          ...requests.records.map(item => `${item.method} ${item.route} · HTTP ${item.status} · ${item.login === 'self' ? '본인' : '비로그인'}${item.attackId ? ` · ${item.attackId}` : ''} · 요청 ID ${item.requestId} · ${item.at}`),
         ]),
       );
     }
