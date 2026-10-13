@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { resourceIdForApi } from '../src/resources.mjs';
+import { checkDeviceSession, deviceSessionHeader } from '../src/device.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/u;
@@ -60,9 +61,14 @@ export function ownerLogin(login) {
   return Object.freeze({ ...login, userId });
 }
 
+// 11단계: 학생 로그인은 서버가 승인한 기기의 세션(x-device-session)이 있어야 자료를 엽니다.
+// requireDevice:false는 기기 승인 요청·확인 경로에서만 씁니다. 심판 로그인은 기기 세션 없이 검사합니다.
 export async function authorizeNotesRequest(request, response, {
   env = process.env,
   verifyAuthorization,
+  fetchImpl = globalThis.fetch,
+  verifyDeviceSession,
+  requireDevice = true,
 } = {}) {
   const supabaseUrl = env.SUPABASE_URL?.trim();
   const supabaseSecretKey = env.SUPABASE_SECRET_KEY?.trim();
@@ -91,7 +97,19 @@ export async function authorizeNotesRequest(request, response, {
       sendJson(response, 401, { error: 'authentication_required' });
       return null;
     }
-    return { login: ownerLogin(login), supabaseUrl: parsedUrl, supabaseSecretKey };
+    const owned = ownerLogin(login);
+    if (requireDevice && owned.kind === 'student') {
+      const token = deviceSessionHeader(request);
+      const approved = verifyDeviceSession
+        ? await verifyDeviceSession(owned.userId, token)
+        : await checkDeviceSession({ supabaseUrl: parsedUrl, secretKey: supabaseSecretKey, fetchImpl,
+          owner: owned.userId, token });
+      if (!approved) {
+        sendJson(response, 403, { error: 'device_not_approved' });
+        return null;
+      }
+    }
+    return { login: owned, supabaseUrl: parsedUrl, supabaseSecretKey };
   } catch {
     sendJson(response, 500, { error: 'server_not_configured' });
     return null;
@@ -223,6 +241,7 @@ export async function handleNotes(request, response, {
   env = process.env,
   fetchImpl = globalThis.fetch,
   verifyAuthorization,
+  verifyDeviceSession,
 } = {}) {
   if (!['GET', 'POST'].includes(request.method)) {
     response.setHeader('Allow', 'GET, POST');
@@ -230,7 +249,7 @@ export async function handleNotes(request, response, {
   }
   if (authConfigRequested(request)) return sendAuthConfig(response, env);
   const resourceId = markResource(response, request.method, '/api/notes');
-  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
+  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization, fetchImpl, verifyDeviceSession });
   if (!auth) return undefined;
   if (denyOutsideZone(response, auth.login, resourceId)) return undefined;
   try {

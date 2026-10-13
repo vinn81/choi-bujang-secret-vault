@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="비밀 자료실">
+  <rect width="512" height="512" rx="96" fill="#101a28"/>
+  <rect x="136" y="232" width="240" height="176" rx="28" fill="#8ad8df"/>
+  <path d="M184 232v-56a72 72 0 0 1 144 0v56" fill="none" stroke="#8ad8df" stroke-width="40" stroke-linecap="round"/>
+  <circle cx="256" cy="306" r="24" fill="#101a28"/>
+  <rect x="244" y="318" width="24" height="48" rx="12" fill="#101a28"/>
+</svg>

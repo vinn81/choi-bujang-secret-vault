@@ -103,13 +103,14 @@ export async function handleNoteById(request, response, {
   env = process.env,
   fetchImpl = globalThis.fetch,
   verifyAuthorization,
+  verifyDeviceSession,
 } = {}) {
   if (!['GET', 'PUT', 'DELETE'].includes(request.method)) {
     response.setHeader('Allow', 'GET, PUT, DELETE');
     return sendJson(response, 405, { error: 'method_not_allowed' });
   }
   const resourceId = markResource(response, request.method, '/api/notes/:id');
-  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
+  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization, fetchImpl, verifyDeviceSession });
   if (!auth) return undefined;
   if (denyOutsideZone(response, auth.login, resourceId)) return undefined;
   const id = noteId(request);

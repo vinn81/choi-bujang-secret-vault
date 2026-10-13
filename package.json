@@ -6,6 +6,7 @@
     "build": "node scripts/build-public.mjs",
     "test:notes": "node --test test/notes-api.test.mjs",
     "test:restore": "node --test test/restore-api.test.mjs",
+    "test:device": "node --test test/device-api.test.mjs",
     "test:r5": "node --test test/r5.test.mjs",
     "test:package": "node --test test/package-starter.test.mjs",
     "bundle": "node scripts/bundle.mjs",
@@ -21,6 +22,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@simplewebauthn/server": "13.3.3",
     "@supabase/supabase-js": "2.117.2",
     "jose": "6.2.12"
   }

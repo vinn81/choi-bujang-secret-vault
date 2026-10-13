@@ -69,7 +69,8 @@ function output() {
 
 const restore = async (db, headers, body, method = 'POST') => {
   const out = output();
-  await handleRestore({ method, headers, body }, out, { env, fetchImpl: db.fetch, verifyAuthorization });
+  await handleRestore({ method, headers, body }, out, { env, fetchImpl: db.fetch, verifyAuthorization,
+    verifyDeviceSession: async () => true });
   return out;
 };
 
@@ -135,7 +136,7 @@ test('감사 기록을 쓰지 못하면 성공 응답을 주지 않는다', asyn
     ? new Response(null, { status: 500 }) : db.fetch(url, init));
   const out = output();
   await handleRestore({ method: 'POST', headers: { authorization: 'Bearer token-b' }, body: { id: NOTE_B } },
-    out, { env, fetchImpl, verifyAuthorization });
+    out, { env, fetchImpl, verifyAuthorization, verifyDeviceSession: async () => true });
   assert.equal(out.statusCode, 500);
   assert.deepEqual(out.body, { error: 'restore_audit_failed' });
 });

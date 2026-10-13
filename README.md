@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 10단계 — 백업에서 자료실을 되살립니다
+# BYTE BACK 방어전 11단계 — 나만의 접속 앱을 완성합니다
 
-브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살리는 10단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
+브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살립니다. 설치형 웹앱 화면과 패스키 기기 승인 흐름을 붙여 서버가 승인한 기기에서만 메모를 여는 11단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
 ## 현재 작동
 
@@ -14,6 +14,8 @@
 - 자료 API는 응답에 `X-Resource-Id`를 붙이고, 검증된 로그인 종류·사용자 ID가 구역과 맞지 않으면 `403`으로 거부합니다. 소유자는 계속 `owner_id`로 확인하며 본문·쿼리의 `role`·`owner_id`는 믿지 않습니다.
 - 탐지 함수(`src/detect.mjs`)는 가상 사건에서 가명 사용자·기기·요청 종류·판정·시각만 읽고, 같은 사용자의 `GET`이 10분 안에 120건을 넘을 때만 `propose_revocation`·`burst_read`를 돌려줍니다. `revocationProposal()`은 별도 결과로 대상 사용자와 확인된 기기 하나(없거나 섞이면 `null`)를 담은 회수 제안을 만듭니다.
 - `npm run policy:diff`·`policy:restore`는 검증한 정책 사본과의 차이를 보여 주고 확인 번호를 거쳐서만 정책 파일을 되돌립니다. `POST /api/restore`는 비공개 사본 `notes_backup`에서 로그인한 본인의 메모 한 건만 ID·소유자·내용 해시를 대조해 복원하고 감사 기록을 덧붙입니다.
+- 설치형 웹앱: `manifest.webmanifest`(앱 이름 `최부장 비밀 자료실`), 아이콘, 오프라인 안내(`offline.html`·`sw.js`, API 응답과 메모는 저장하지 않음). 설치 여부는 기기 확인이 아닙니다.
+- 학생 로그인은 서버가 승인한 기기의 세션(`x-device-session`)이 있어야 메모·복원 API가 열립니다. 없으면 자료 조회 전에 `403 device_not_approved`입니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
@@ -31,6 +33,16 @@
 ## 보너스 XDR xdr-02
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
+
+## 11단계 접속 앱과 기기 승인
+
+- 서비스·경로: `POST /api/device/register`(이 기기를 승인 대기로 등록), `POST /api/device/verify`(패스키 서명 검증 뒤 승인된 기기에만 30분 기기 세션). 두 경로는 `allowedRoutes`에 더하지 않고 여기에만 적습니다.
+- 기기 개인키는 기기의 패스키 인증기 안에만 있고, 서버(`device_credentials`)에는 공개키와 승인 여부만 둡니다. 기기 세션 원문은 응답으로 한 번만 주고 DB(`device_sessions`)에는 SHA-256 지문만 저장합니다. 화면은 기기 세션을 메모리에만 두고 브라우저 저장소에 넣지 않습니다.
+- 화면의 "이 기기 승인 요청" 버튼은 승인 대기로만 등록합니다. 승인은 학생이 Supabase SQL Editor에서 `device_credentials.approved`를 바꿔서 합니다(`policy/device-approval.sql`). 승인을 거두면 다음 요청부터 그 기기의 세션이 거부됩니다.
+- 심판 로그인은 기기 세션 검사를 받지 않습니다. 심판 토큰에 기기 정보가 없어 이전 단계 확인을 막지 않기 위해서입니다.
+- 남은 한계: Supabase 로그인 세션은 아직 브라우저 `localStorage`에 저장됩니다. 메모·복원 API 파일이 바뀌어 `policy:diff`는 9단계 검증 정책 대비 `api/notes.js`·`api/notes/[id].js`를 의도한 차이로 보여 줍니다.
+
+로컬 확인(2026-10-13): `npm.cmd run test:device` 5건 통과. 승인 전 메모 `403`(메모 조회 안 함), 승인 요청만으로는 세션 없음, DB에서 승인한 기기만 세션을 받아 메모 `200`, 다른 사용자·승인 취소·만료·서명 실패 `403`. 기존 `test:notes`·`test:restore`는 승인된 기기 조건으로 통과했습니다. 배포 화면의 실제 패스키 승인은 미실행입니다. 가상 자료 연습이며 심판 판정이 아닙니다.
 
 ## 10단계 백업에서 되살리기
 
@@ -74,7 +86,7 @@
 | 1~2 공개 자료 정리 | 5번 `static_notes_removed` | `/data.json` `200`, 메모 0건 | 공개 파일에 메모가 보이면 실패 | 학생 PC 묶음: `/data.json` `200`·메모 0건 |
 | 3 로그인 | 5번 `anonymous_notes_*`, 4번 `test:notes` | 로그인한 A의 목록·추가·수정·삭제 성공 | 무로그인 목록·추가·조회·수정·삭제 `401` | 학생 PC 묶음: 무로그인 목록·추가·조회·수정·삭제·복원 모두 `401`. 로컬 `test:notes` 5건 통과 |
 | 4 소유자 검사 | 6번, 4번 `test:notes` | A 자기 메모 `200` | B의 A 메모 읽기·수정·삭제 `404`, 소유자 변경 `400` | 학생 확인: 다른 계정의 메모 복원 `404`. 로컬 `test:notes`에서 상대 메모 `404`·소유자 변경 `400`. 배포 화면의 상대 메모 직접 조회는 복구 뒤 다시 하지 않음 |
-| 5 서버 경유·DB 권한 | 3번, 5번 `direct_original_notes` | 서버 함수 경유 CRUD 성공 | 원본 API 직접 요청 `401`·`403`, anon·authenticated 권한 `false` | 학생 PC 묶음: 원본 API 직접 GET `401`. 3번 `public.notes` 권한 조회는 복구 뒤 미실행 |
+| 5 서버 경유·DB 권한 | 3번, 5번 `direct_original_notes` | 서버 함수 경유 CRUD 성공 | 원본 API 직접 요청 `401`·`403`, anon·authenticated 권한 `false` | 학생 PC 묶음: 원본 API 직접 GET `401`. 학생 확인: 3번 `public.notes` 권한 조회 정상(anon·authenticated `false`, service_role `true`) |
 | 6 등록 기기 | 4번 `decider:test` | 등록 기기 읽기 `allow` | 미등록 기기 `deny`·`device_not_registered` | 로컬 `decider:test` 통과: 등록 `allow`, 미등록 `deny`·`device_not_registered` |
 | 7 재확인 | 4번 `decider:test`, `fixture:7` | 정상 사건·재인증한 사건 `allow` | 복합 이상 사건 `step_up`·`step_up_required` | 로컬 `decider:test`·`fixture:7` 통과: 정상·재인증 `allow`, 복합 이상 `step_up` |
 | 8 자원 구역 | 4번 `test:notes`, 5번 `own_note_zone` 등, 6번 | 메모 한 건 읽기·수정 `allow`, 화면 목록 `200` | 메모 전체 목록·공지 쓰기·알 수 없는 경로 `deny`, 구역이 맞지 않는 로그인 `403` | 묶음 점검: 자기 메모 수정 `allow`, 학생 공지 수정 `deny`·`instructor_role_required`, 기능 경로 `deny`·`route_not_allowed`. 화면 메모 목록은 학생이 B 로그인으로 확인 |
@@ -145,7 +157,7 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
 - 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id` (9단계 검증 정책과 같음)
 - 복원 경로(`restoreRoute`): `POST /api/restore` (허용 경로 목록은 바꾸지 않고 이 칸에만 적음)
-- 단계: `10`
+- 단계: `11`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
 - `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
 
@@ -166,6 +178,14 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 
 ## 다시 확인하기
 
+11단계 기기 승인 흐름을 확인합니다.
+
+```powershell
+npm.cmd run test:device
+```
+
+정상 결과는 5건 통과입니다. 배포 화면에서는 로그인 뒤 "이 기기 승인 요청" → SQL Editor에서 승인 → "승인 확인하고 자료실 열기" 순서로 메모가 열려야 합니다. 거부되어야 할 결과는 승인 전 메모 영역 없음, 승인 전 메모 API `403 device_not_approved`, 비로그인 기기 경로 `401`입니다.
+
 10단계 정책 비교와 메모 한 건 복원을 확인합니다.
 
 ```powershell
@@ -173,7 +193,7 @@ npm.cmd run policy:diff
 npm.cmd run test:restore
 ```
 
-정상 결과는 `사본 검증: 통과`와 복원 시험 6건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 복원 경로는 `restoreRoute`에만 적고 `allowedRoutes`는 9단계 검증 정책 그대로 두므로 `policy:diff`는 `사본과 차이가 없습니다`여야 합니다.
+정상 결과는 `사본 검증: 통과`와 복원 시험 6건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 복원 경로는 `restoreRoute`에만 적고 `allowedRoutes`는 9단계 검증 정책 그대로 둡니다. 11단계부터 `policy:diff`는 기기 세션 검사를 더한 `api/notes.js`·`api/notes/[id].js`만 의도한 차이로 보여 줍니다.
 
 9단계 탐지 함수를 확인합니다.
 

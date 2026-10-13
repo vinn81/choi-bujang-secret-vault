@@ -4,6 +4,8 @@ import { handleNotes } from '../api/notes.js';
 import { handleNoteById } from '../api/notes/[id].js';
 
 const USER_A = '11111111-1111-4111-8111-111111111111';
+// 11단계: 이 시험은 승인된 기기 세션이 있다고 보고 기존 자료실 동작을 확인합니다.
+const approvedDevice = async () => true;
 const USER_B = '22222222-2222-4222-8222-222222222222';
 const PROJECT_URL = 'https://yhjbdzvzdncohckdocao.supabase.co';
 const env = {
@@ -86,7 +88,7 @@ test('무로그인 목록·추가·조회·수정·삭제는 자료 조회 전�
   ];
   for (const [handler, request] of cases) {
     const output = response();
-    await handler(request, output, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    await handler(request, output, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(output.statusCode, 401);
     assert.deepEqual(output.body, { error: 'authentication_required' });
   }
@@ -113,7 +115,7 @@ test('A는 자신의 가상 메모를 추가·목록 조회·수정·삭제하�
     method: 'POST',
     headers,
     body: { title: '가상 제목', body: '가상 내용', owner_id: '브라우저 위조값' },
-  }, createResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+  }, createResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(createResponse.statusCode, 201);
   assert.match(createResponse.body.id, /^[0-9a-f-]{36}$/u);
   assert.equal(api.rows.get(createResponse.body.id).owner_id, USER_A);
@@ -127,7 +129,7 @@ test('A는 자신의 가상 메모를 추가·목록 조회·수정·삭제하�
 
   const listResponse = response();
   await handleNotes({ method: 'GET', headers }, listResponse,
-    { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(listResponse.statusCode, 200);
   assert.deepEqual(listResponse.body, {
     notes: [{ id: createResponse.body.id, title: '가상 제목', body: '가상 내용' }],
@@ -137,26 +139,26 @@ test('A는 자신의 가상 메모를 추가·목록 조회·수정·삭제하�
   await handleNoteById({
     method: 'PUT', headers, query: { id: createResponse.body.id },
     body: { title: '수정 제목', body: '수정 내용' },
-  }, updateResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+  }, updateResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(updateResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body,
     { id: createResponse.body.id, title: '수정 제목', body: '수정 내용' });
 
   const getResponse = response();
   await handleNoteById({ method: 'GET', headers, query: { id: createResponse.body.id } },
-    getResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    getResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(getResponse.statusCode, 200);
   assert.deepEqual(getResponse.body,
     { id: createResponse.body.id, title: '수정 제목', body: '수정 내용' });
 
   const deleteResponse = response();
   await handleNoteById({ method: 'DELETE', headers, query: { id: createResponse.body.id } },
-    deleteResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    deleteResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(deleteResponse.statusCode, 204);
 
   const missingResponse = response();
   await handleNoteById({ method: 'GET', headers, query: { id: createResponse.body.id } },
-    missingResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    missingResponse, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(missingResponse.statusCode, 404);
   assert.deepEqual(missingResponse.body, { error: 'note_not_found' });
 });
@@ -167,13 +169,13 @@ test('POST는 제공된 UUID를 사용하고 같은 ID의 중복 추가를 409�
   const id = '44444444-4444-4444-8444-444444444444';
   const request = { method: 'POST', headers, body: { id, title: '지정 ID', body: '가상 내용' } };
   const created = response();
-  await handleNotes(request, created, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+  await handleNotes(request, created, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(created.statusCode, 201);
   assert.deepEqual(created.body, { id });
   assert.equal(api.rows.get(id).owner_id, USER_A);
 
   const conflict = response();
-  await handleNotes(request, conflict, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+  await handleNotes(request, conflict, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
   assert.equal(conflict.statusCode, 409);
   assert.deepEqual(conflict.body, { error: 'note_conflict' });
 });
@@ -191,7 +193,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
       method: 'POST',
       headers: { authorization: `Bearer ${user.token}` },
       body: { id: user.id, title: '본인 메모', body: '공개 가능한 가상 내용', owner_id: '위조값' },
-    }, created, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    }, created, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(created.statusCode, 201);
     assert.equal(api.rows.get(user.id).owner_id, user.userId);
   }
@@ -201,7 +203,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
 
     const ownGet = response();
     await handleNoteById({ method: 'GET', headers, query: { id: user.id } }, ownGet,
-      { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+      { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(ownGet.statusCode, 200);
     assert.deepEqual(ownGet.body, { id: user.id, title: '본인 메모', body: '공개 가능한 가상 내용' });
 
@@ -213,7 +215,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
     ]) {
       const denied = response();
       await handleNoteById(request, denied,
-        { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+        { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
       assert.equal(denied.statusCode, 404);
       assert.deepEqual(denied.body, { error: 'note_not_found' });
     }
@@ -222,7 +224,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
     await handleNoteById({
       method: 'PUT', headers, query: { id: user.id },
       body: { title: '수정됨', body: '본인 수정', owner_id: other.userId },
-    }, changed, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    }, changed, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(changed.statusCode, 400);
     assert.deepEqual(changed.body, { error: 'invalid_note' });
     assert.equal(api.rows.get(user.id).owner_id, user.userId);
@@ -231,7 +233,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
     await handleNoteById({
       method: 'PUT', headers, query: { id: user.id },
       body: { title: '수정됨', body: '본인 수정' },
-    }, ownUpdate, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    }, ownUpdate, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(ownUpdate.statusCode, 200);
     assert.deepEqual(ownUpdate.body, { id: user.id, title: '수정됨', body: '본인 수정' });
   }
@@ -242,7 +244,7 @@ test('A와 B는 자기 메모 CRUD를 유지하고 상대 메모 접근은 404�
       method: 'DELETE',
       headers: { authorization: `Bearer ${user.token}` },
       query: { id: user.id },
-    }, deleted, { env, fetchImpl: api.fetch, verifyAuthorization: verifier });
+    }, deleted, { env, fetchImpl: api.fetch, verifyAuthorization: verifier, verifyDeviceSession: approvedDevice });
     assert.equal(deleted.statusCode, 204);
   }
 });

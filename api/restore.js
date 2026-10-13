@@ -34,13 +34,14 @@ export async function handleRestore(request, response, {
   env = process.env,
   fetchImpl = globalThis.fetch,
   verifyAuthorization,
+  verifyDeviceSession,
 } = {}) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
     return sendJson(response, 405, { error: 'method_not_allowed' });
   }
   response.setHeader('X-Resource-Id', RESOURCE_ID);
-  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization });
+  const auth = await authorizeNotesRequest(request, response, { env, verifyAuthorization, fetchImpl, verifyDeviceSession });
   if (!auth) return undefined;
   if (denyOutsideZone(response, auth.login, RESOURCE_ID)) return undefined;
 
