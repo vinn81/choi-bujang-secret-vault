@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![5, 6].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6, 7].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -82,7 +82,7 @@ export async function runAttackChecks(config) {
   if (config.step >= 6) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
-    const { normal } = fixtureRequests();
+    const { normal, suspicious } = fixtureRequests();
     const registered = await decide(normal);
     const unregistered = await decide({ ...normal, requestId: crypto.randomUUID(),
       deviceRegistered: false });
@@ -98,6 +98,30 @@ export async function runAttackChecks(config) {
         observed: `로컬 판정기 ${unregistered.decision} · ${unregistered.reasonCode}`,
       },
     );
+    // 7단계: 복합 이상 가상 사건과 위조 출처를 로컬 판정기에 넣은 결과입니다.
+    // 재로그인 전 실제 자료 차단은 제공 엔진이 없어 여기서 실행하지 않습니다.
+    if (config.step >= 7) {
+      const unusual = await decide({ ...suspicious, requestId: crypto.randomUUID() });
+      const spoofed = await decide({ ...suspicious, requestId: crypto.randomUUID(),
+        signals: { ...suspicious.signals, source: 'client_header' } });
+      deviceChecks.push(
+        {
+          attackId: 'unusual_access_step_up',
+          expected: '이상 시각·처음 보는 네트워크·대량 읽기가 겹친 가상 사건은 step_up · step_up_required',
+          observed: `로컬 판정기 ${unusual.decision} · ${unusual.reasonCode}`,
+        },
+        {
+          attackId: 'spoofed_signal_source',
+          expected: '클라이언트 헤더 출처 신호는 신뢰하지 않아 step_up 근거가 되지 않음',
+          observed: `로컬 판정기 ${spoofed.decision} · ${spoofed.reasonCode}`,
+        },
+        {
+          attackId: 'step_up_live_block',
+          expected: '재로그인 전 실제 자료 차단과 새 로그인 뒤 허용',
+          observed: '미실행 · 제공 엔진이 저장소에 없음',
+        },
+      );
+    }
   }
 
   return [
