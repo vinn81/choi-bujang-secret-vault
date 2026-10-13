@@ -50,29 +50,12 @@ export async function runAttackChecks(config) {
     }
   };
 
-  const loadPublishableKey = async () => {
-    try {
-      const response = await fetch(new URL('/api/notes?auth=config', app), {
-        headers: { Accept: 'application/json' },
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      return typeof data?.publishableKey === 'string'
-        && data.publishableKey.startsWith('sb_publishable_') ? data.publishableKey : null;
-    } catch {
-      return null;
-    }
-  };
-
   const itemPath = '/api/notes/00000000-0000-4000-8000-000000000000';
   const seen = (result, extra = '') => (result ? `GET ${result.url} HTTP ${result.status}${extra} · 요청 ID ${result.requestId}` : 'not_run');
   const notes = result => (result && result.noteCount !== null ? ` · 메모 ${result.noteCount}건` : '');
-  const publishableKey = await loadPublishableKey();
-  const originalDirect = await inspect('direct_original_notes', originalApi, publishableKey ? {
-    headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` },
-  } : {});
+  // 점검 이름이 없는 준비 요청(공개 설정 읽기)은 보내지 않습니다. 보낸 요청과 결과가 한 건씩 짝이 되게,
+  // 원본 API는 키 없이 직접 GET합니다.
+  const originalDirect = await inspect('direct_original_notes', originalApi);
   const staticData = await inspect('static_notes_removed', '/data.json');
   const anonymousList = await inspect('anonymous_notes_list', '/api/notes');
   const anonymousGet = await inspect('anonymous_note_item', itemPath);
@@ -104,7 +87,7 @@ export async function runAttackChecks(config) {
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
-      observed: originalDirect ? `GET ${originalDirect.url} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status}${notes(originalDirect)} · 요청 ID ${originalDirect.requestId}` : 'not_run',
+      observed: originalDirect ? `GET ${originalDirect.url} (키 없음) HTTP ${originalDirect.status}${notes(originalDirect)} · 요청 ID ${originalDirect.requestId}` : 'not_run',
     },
     {
       attackId: 'static_notes_removed',
