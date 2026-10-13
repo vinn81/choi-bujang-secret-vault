@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6, 7, 8, 9].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -144,6 +144,41 @@ export async function runAttackChecks(config) {
           attackId: 'unknown_feature_path',
           expected: '표에 없는 기능 경로(/notes/export/all)는 deny · route_not_allowed',
           observed: `로컬 판정기 ${featurePath.decision} · ${featurePath.reasonCode}`,
+        },
+      );
+    }
+    // 9단계: 로컬 탐지 함수에 가상 조회 사건을 넣은 결과입니다. 실제 회수와 경과 시간은 심판이 확인합니다.
+    if (config.step >= 9) {
+      const { detect, revocationProposal } = await import('./detect.mjs');
+      const start = Date.UTC(2026, 9, 1);
+      const reads = (count, sub) => Array.from({ length: count }, (_, index) => ({
+        at: new Date(start + index * 2000).toISOString(), method: 'GET', identity: { sub },
+        deviceId: 'a'.repeat(16),
+      }));
+      const ordinary = detect(reads(30, 'learner_fixture'));
+      const burst = reads(121, 'learner_fixture');
+      const burstResult = detect(burst);
+      const proposal = revocationProposal(burst);
+      deviceChecks.push(
+        {
+          attackId: 'normal_reads_observed',
+          expected: '같은 사용자 조회 30건은 observe, 회수 제안 없음',
+          observed: `로컬 탐지 ${ordinary.action}`,
+        },
+        {
+          attackId: 'burst_read_detected',
+          expected: '10분 안 조회 121건은 propose_revocation · burst_read',
+          observed: `로컬 탐지 ${burstResult.action} · ${burstResult.reasonCode ?? '없음'}`,
+        },
+        {
+          attackId: 'revocation_proposal_target',
+          expected: '회수 제안은 가상 사용자·기기 하나와 이유 코드를 담음',
+          observed: proposal ? `로컬 제안 ${proposal.reasonCode} · 기기 ${proposal.deviceId ? '1개' : '미확인'}` : '로컬 제안 없음',
+        },
+        {
+          attackId: 'live_revocation',
+          expected: '운영 엔진의 실제 회수와 첫 의심부터 회수까지 경과 시간',
+          observed: '미실행 · 운영 엔진 연결 없음, 심판이 확인',
         },
       );
     }

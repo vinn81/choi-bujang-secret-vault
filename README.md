@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 8단계 — 자료마다 갈 수 있는 구역을 나눕니다
+# BYTE BACK 방어전 9단계 — 도플갱어를 찾고 권한을 거둡니다
 
-브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조하는 8단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
+브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하는 9단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
 ## 현재 작동
 
@@ -12,6 +12,7 @@
 - 판정기는 엔진이 검증한 `judge_fixture` 신호에서 이상 시각·처음 보는 네트워크·대량 읽기가 모두 겹치면 `step_up`·`step_up_required`를 돌려줍니다. 다른 출처의 신호는 신뢰하지 않습니다.
 - 자원은 `src/resources.mjs`에서 `notes.own`(내 메모)과 `notices.instructor`(강사 공지, 자료·API 없음)로 나뉩니다. 판정기 `resource_zone`은 자기 메모 한 건 읽기·수정만 허용하고, 여러 사람의 자료를 한꺼번에 여는 메모 전체 목록(`GET /notes`)과 공지 쓰기는 누구에게나 거부합니다. 강사 공지 수정은 `instructor_role_required`, 표에 없거나 쿼리가 붙은 경로는 `route_not_allowed`로 거부합니다.
 - 자료 API는 응답에 `X-Resource-Id`를 붙이고, 검증된 로그인 종류·사용자 ID가 구역과 맞지 않으면 `403`으로 거부합니다. 소유자는 계속 `owner_id`로 확인하며 본문·쿼리의 `role`·`owner_id`는 믿지 않습니다.
+- 탐지 함수(`src/detect.mjs`)는 가상 사건에서 가명 사용자·기기·요청 종류·판정·시각만 읽고, 같은 사용자의 `GET`이 10분 안에 120건을 넘을 때만 `propose_revocation`·`burst_read`를 돌려줍니다. `revocationProposal()`은 별도 결과로 대상 사용자와 확인된 기기 하나(없거나 섞이면 `null`)를 담은 회수 제안을 만듭니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
@@ -29,6 +30,14 @@
 ## 보너스 XDR xdr-02
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
+
+## 9단계 탐지와 회수 제안
+
+- 계약(`docs/DETECT_EVENTS.md`)의 사건 값 `at`·`method`·`identity.sub`만 탐지 근거로 씁니다. 메모 내용·토큰·실명은 읽어 들이지 않습니다. 지역·네트워크는 사건 계약에 없어 근거로 쓰지 않습니다.
+- 정확히 120건, 다른 사용자끼리의 합산, 10분 밖의 조회, `GET`이 아닌 요청은 세지 않습니다. 여러 사용자가 넘으면 가장 먼저 넘은 사용자 하나를 제안합니다.
+- 회수 제안은 제안 객체만 만듭니다. 회수 API 호출, 기기 권한 변경, 판정기 응답 형식 변경은 하지 않았습니다.
+
+로컬 확인(2026-10-13): `npm.cmd run detect:test` 6건 통과, 정상 30건 `observe`·제안 없음, 폭주 121건 이상 `propose_revocation`·`burst_read`. 운영 반 엔진의 사건 전달·실제 회수·경과 시간 측정은 미실행이며 심판이 확인합니다. 가상 사건 연습이며 심판 판정이 아닙니다.
 
 ## 8단계 자원 구역
 
@@ -81,7 +90,7 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 - 실제 배포 주소: `https://choi-bujang-secret-vault-phi.vercel.app`
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
 - 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id`
-- 단계: `8`
+- 단계: `9`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
 - `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
 
@@ -102,7 +111,15 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 
 ## 다시 확인하기
 
-6·7단계 판정기를 확인합니다.
+9단계 탐지 함수를 확인합니다.
+
+```powershell
+npm.cmd run detect:test
+```
+
+정상 결과는 `통과 · 정상 조회 30건`, `통과 · 10분 안에 120건`, `통과 · 서로 다른 사용자 각 100건`, `통과 · 10분 밖으로 흩어진 조회 200건`(모두 `observe`)입니다. 회수 제안이 나와야 할 결과는 `통과 · 10분 안에 121건`, `통과 · 폭주 조회 200건`입니다. 가상 사건 연습이며 실제 접속 회수나 심판 판정이 아닙니다.
+
+6·7·8단계 판정기를 확인합니다.
 
 ```powershell
 npm.cmd run decider:test
