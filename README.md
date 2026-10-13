@@ -71,15 +71,17 @@
 
 | 단계 | 확인 방법 | 정상 요청 결과 | 거부되어야 할 요청 결과 | 복구 뒤 결과 |
 |---|---|---|---|---|
-| 1~2 공개 자료 정리 | 5번 `static_notes_removed` | `/data.json` `200`, 메모 0건 | 공개 파일에 메모가 보이면 실패 | 미실행 |
-| 3 로그인 | 5번 `anonymous_notes_*`, 4번 `test:notes` | 로그인한 A의 목록·추가·수정·삭제 성공 | 무로그인 목록·추가·조회·수정·삭제 `401` | 미실행 |
-| 4 소유자 검사 | 6번, 4번 `test:notes` | A 자기 메모 `200` | B의 A 메모 읽기·수정·삭제 `404`, 소유자 변경 `400` | 미실행 |
-| 5 서버 경유·DB 권한 | 3번, 5번 `direct_original_notes` | 서버 함수 경유 CRUD 성공 | 원본 API 직접 요청 `401`·`403`, anon·authenticated 권한 `false` | 미실행 |
-| 6 등록 기기 | 4번 `decider:test` | 등록 기기 읽기 `allow` | 미등록 기기 `deny`·`device_not_registered` | 미실행 |
-| 7 재확인 | 4번 `decider:test`, `fixture:7` | 정상 사건·재인증한 사건 `allow` | 복합 이상 사건 `step_up`·`step_up_required` | 미실행 |
-| 8 자원 구역 | 4번 `test:notes`, 5번 `own_note_zone` 등, 6번 | 메모 한 건 읽기·수정 `allow`, 화면 목록 `200` | 메모 전체 목록·공지 쓰기·알 수 없는 경로 `deny`, 구역이 맞지 않는 로그인 `403` | 미실행 |
-| 9 탐지·회수 제안 | 4번 `detect:test` | 정상 조회 `observe` | 10분 안 121건 이상 `propose_revocation`·`burst_read` | 미실행 |
+| 1~2 공개 자료 정리 | 5번 `static_notes_removed` | `/data.json` `200`, 메모 0건 | 공개 파일에 메모가 보이면 실패 | 학생 PC 묶음: `/data.json` `200`·메모 0건 |
+| 3 로그인 | 5번 `anonymous_notes_*`, 4번 `test:notes` | 로그인한 A의 목록·추가·수정·삭제 성공 | 무로그인 목록·추가·조회·수정·삭제 `401` | 학생 PC 묶음: 무로그인 목록·추가·조회·수정·삭제·복원 모두 `401`. 로컬 `test:notes` 5건 통과 |
+| 4 소유자 검사 | 6번, 4번 `test:notes` | A 자기 메모 `200` | B의 A 메모 읽기·수정·삭제 `404`, 소유자 변경 `400` | 학생 확인: 다른 계정의 메모 복원 `404`. 로컬 `test:notes`에서 상대 메모 `404`·소유자 변경 `400`. 배포 화면의 상대 메모 직접 조회는 복구 뒤 다시 하지 않음 |
+| 5 서버 경유·DB 권한 | 3번, 5번 `direct_original_notes` | 서버 함수 경유 CRUD 성공 | 원본 API 직접 요청 `401`·`403`, anon·authenticated 권한 `false` | 학생 PC 묶음: 원본 API 직접 GET `401`. 3번 `public.notes` 권한 조회는 복구 뒤 미실행 |
+| 6 등록 기기 | 4번 `decider:test` | 등록 기기 읽기 `allow` | 미등록 기기 `deny`·`device_not_registered` | 로컬 `decider:test` 통과: 등록 `allow`, 미등록 `deny`·`device_not_registered` |
+| 7 재확인 | 4번 `decider:test`, `fixture:7` | 정상 사건·재인증한 사건 `allow` | 복합 이상 사건 `step_up`·`step_up_required` | 로컬 `decider:test`·`fixture:7` 통과: 정상·재인증 `allow`, 복합 이상 `step_up` |
+| 8 자원 구역 | 4번 `test:notes`, 5번 `own_note_zone` 등, 6번 | 메모 한 건 읽기·수정 `allow`, 화면 목록 `200` | 메모 전체 목록·공지 쓰기·알 수 없는 경로 `deny`, 구역이 맞지 않는 로그인 `403` | 묶음 점검: 자기 메모 수정 `allow`, 학생 공지 수정 `deny`·`instructor_role_required`, 기능 경로 `deny`·`route_not_allowed`. 화면 메모 목록은 학생이 B 로그인으로 확인 |
+| 9 탐지·회수 제안 | 4번 `detect:test` | 정상 조회 `observe` | 10분 안 121건 이상 `propose_revocation`·`burst_read` | 로컬 `detect:test` 6건 통과: 정상 `observe`, 폭주 `propose_revocation`·`burst_read` |
 | 10 복원 | 1번, 2번, 4번 `test:restore` | 대상 한 건 ID·소유자·해시가 사본과 같음 | B의 A 메모 복원 `404`, 사본 해시 불일치 `409` | 학생 확인(2026-10-13): B 메모 한 건 복원 `200`·`restored: true`, 제목 원래대로, `same_owner`·`same_hash` 모두 `true`, `audit_rows` 1, A의 B 메모 복원 `404 backup_not_found`, 비로그인 복원 `401`. 사본 해시 불일치 `409`는 로컬 시험만 |
+
+복구 뒤 결과의 출처(2026-10-13): "학생 PC 묶음"은 학생이 PC에서 `npm.cmd run bundle`로 배포 주소에 실제로 보낸 요청의 결과입니다. "로컬"은 `5a90be1`에서 다시 실행한 시험이며, 판정기·탐지 시험은 가상 요청 연습입니다. 정책 사본은 `npm.cmd run policy:diff`로 다시 읽어 `사본 검증: 통과`였고, 남은 차이는 10단계에서 일부러 더한 `allowedRoutes`의 `POST /api/restore`뿐입니다. 학습 DB의 정책 복원(`policy:restore` 적용)은 되돌릴 차이가 없어 실행하지 않았습니다.
 
 재인증 전 실제 자료 차단(7단계)과 운영 엔진의 실제 회수·경과 시간(9단계)은 제공 엔진이 저장소에 없어 복구 뒤에도 미실행이며 심판이 확인합니다.
 
