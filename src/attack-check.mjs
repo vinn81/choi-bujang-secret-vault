@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
@@ -6,7 +6,8 @@ import { randomUUID } from 'node:crypto';
 // 쓰기 요청(POST·PUT·DELETE)이 필요한 점검은 보내지 않고 observed를 not_run으로 둡니다.
 // 그 쓰기 요청 결과는 작전실의 1~11단계 실측 재확인(로그인한 브라우저에서 실행)으로 남깁니다.
 // 실제로 보내는 GET 요청마다 randomUUID로 요청 ID를 만들어 x-request-id 헤더로 보내고,
-// HTTP 응답을 받은 경우에만 observed에 방법·전체 주소·상태·요청 ID를 적습니다.
+// HTTP 응답을 받은 경우에만 observed에 방법·전체 주소·상태·요청 ID와 응답 본문의 sha256을 적습니다.
+// 본문 자체는 적지 않고, 실제로 받은 응답임을 대조할 수 있는 해시만 남깁니다. 본문을 읽지 못하면 해시를 채우지 않습니다.
 // 응답을 받지 못한 요청(연결 실패·차단)은 실제 API 결과가 없으므로 observed를 not_run으로 둡니다. 읽지 못한 값은 채우지 않습니다.
 export async function runAttackChecks(config) {
   if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
@@ -37,14 +38,17 @@ export async function runAttackChecks(config) {
         signal: AbortSignal.timeout(10000),
       });
       let noteCount = null;
+      let bodySha256 = null;
       try {
-        const data = await response.json();
+        const text = await response.text();
+        bodySha256 = createHash('sha256').update(text, 'utf8').digest('hex');
+        const data = JSON.parse(text);
         if (Array.isArray(data)) noteCount = data.length;
         else if (Array.isArray(data?.notes)) noteCount = data.notes.length;
       } catch {
-        // Only record status and count; never include a response body.
+        // Only record status, count and body hash; never include a response body.
       }
-      return { status: response.status, noteCount, url: url.href, requestId };
+      return { status: response.status, noteCount, url: url.href, requestId, bodySha256 };
     } catch {
       return null;
     }
@@ -67,7 +71,8 @@ export async function runAttackChecks(config) {
   };
 
   const itemPath = '/api/notes/00000000-0000-4000-8000-000000000000';
-  const seen = (result, extra = '') => (result ? `GET ${result.url} HTTP ${result.status}${extra} · 요청 ID ${result.requestId}` : 'not_run');
+  const evidence = result => ` · 요청 ID ${result.requestId}${result.bodySha256 ? ` · 응답 sha256 ${result.bodySha256}` : ''}`;
+  const seen = (result, extra = '') => (result ? `GET ${result.url} HTTP ${result.status}${extra}${evidence(result)}` : 'not_run');
   const notes = result => (result && result.noteCount !== null ? ` · 메모 ${result.noteCount}건` : '');
   const publishableKey = await loadPublishableKey();
   const originalDirect = await inspect('direct_original_notes', originalApi, publishableKey ? {
@@ -104,7 +109,7 @@ export async function runAttackChecks(config) {
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
-      observed: originalDirect ? `GET ${originalDirect.url} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status}${notes(originalDirect)} · 요청 ID ${originalDirect.requestId}` : 'not_run',
+      observed: originalDirect ? `GET ${originalDirect.url} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status}${notes(originalDirect)}${evidence(originalDirect)}` : 'not_run',
     },
     {
       attackId: 'static_notes_removed',
