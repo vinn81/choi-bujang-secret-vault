@@ -1,12 +1,10 @@
-import { randomUUID } from 'node:crypto';
-
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 // 12단계: 심판은 이 점검을 격리 환경에서 실행하며 공개 HTTPS 주소로 GET·HEAD 요청만 허용합니다.
 // 쓰기 요청(POST·PUT·DELETE)이 필요한 점검은 보내지 않고 observed를 not_run으로 둡니다.
 // 그 쓰기 요청 결과는 작전실의 1~11단계 실측 재확인(로그인한 브라우저에서 실행)으로 남깁니다.
-// 실제로 보내는 GET 요청마다 randomUUID로 요청 ID를 만들어 x-request-id 헤더로 보내고,
-// observed에 방법·전체 주소·상태·요청 ID를 적어 실행 기록과 대조할 수 있게 합니다.
+// 실제로 보내는 GET 요청은 시작 틀과 같은 모양으로 보내고, HTTP 응답을 받은 경우에만 observed에 방법·전체 주소·상태를 적습니다.
+// 응답을 받지 못한 요청(연결 실패·차단)은 실제 API 결과가 없으므로 observed를 not_run으로 둡니다. 읽지 못한 값은 채우지 않습니다.
 export async function runAttackChecks(config) {
   if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
@@ -27,11 +25,9 @@ export async function runAttackChecks(config) {
 
   const inspect = async (attackId, target, init = {}) => {
     const url = target instanceof URL ? target : new URL(target, app);
-    const requestId = randomUUID();
     try {
       const response = await fetch(url, {
         ...init,
-        headers: { ...init.headers, 'x-request-id': requestId },
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
       });
@@ -43,9 +39,9 @@ export async function runAttackChecks(config) {
       } catch {
         // Only record status and count; never include a response body.
       }
-      return { status: response.status, noteCount, url: url.href, requestId };
+      return { status: response.status, noteCount, url: url.href };
     } catch {
-      return { status: 'request_failed', noteCount: null, url: url.href, requestId };
+      return null;
     }
   };
 
@@ -66,6 +62,8 @@ export async function runAttackChecks(config) {
   };
 
   const itemPath = '/api/notes/00000000-0000-4000-8000-000000000000';
+  const seen = (result, extra = '') => (result ? `GET ${result.url} HTTP ${result.status}${extra}` : 'not_run');
+  const notes = result => (result && result.noteCount !== null ? ` · 메모 ${result.noteCount}건` : '');
   const publishableKey = await loadPublishableKey();
   const originalDirect = await inspect('direct_original_notes', originalApi, publishableKey ? {
     headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` },
@@ -100,17 +98,17 @@ export async function runAttackChecks(config) {
     {
       attackId: 'direct_original_notes',
       expected: '원본 API 직접 GET은 HTTP 401 또는 403, 메모 없음',
-      observed: `GET ${originalDirect.url} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status} · 메모 ${originalDirect.noteCount ?? '확인 불가'}건 · 요청 ID ${originalDirect.requestId}`,
+      observed: originalDirect ? `GET ${originalDirect.url} (${publishableKey ? 'publishable 키' : '키 없음'}) HTTP ${originalDirect.status}${notes(originalDirect)}` : 'not_run',
     },
     {
       attackId: 'static_notes_removed',
       expected: '비로그인 /data.json의 메모 0건',
-      observed: `GET ${staticData.url} HTTP ${staticData.status} · 메모 ${staticData.noteCount ?? '확인 불가'}건 · 요청 ID ${staticData.requestId}`,
+      observed: seen(staticData, notes(staticData)),
     },
     {
       attackId: 'anonymous_notes_list',
       expected: '비로그인 GET /api/notes는 HTTP 401, 메모 없음',
-      observed: `GET ${anonymousList.url} HTTP ${anonymousList.status} · 메모 ${anonymousList.noteCount ?? '확인 불가'}건 · 요청 ID ${anonymousList.requestId}`,
+      observed: seen(anonymousList, notes(anonymousList)),
     },
     {
       attackId: 'anonymous_notes_create',
@@ -131,17 +129,17 @@ export async function runAttackChecks(config) {
         observed: 'not_run',
       },
     ] : []),
-    ...(anonymousOps ? [
+    ...(config.step >= 12 ? [
       {
         attackId: 'anonymous_ops_summary',
         expected: '비로그인 GET /api/ops는 HTTP 401',
-        observed: `GET ${anonymousOps.url} HTTP ${anonymousOps.status} · 요청 ID ${anonymousOps.requestId}`,
+        observed: seen(anonymousOps),
       },
     ] : []),
     {
       attackId: 'anonymous_note_item',
       expected: '비로그인 GET /api/notes/:id는 HTTP 401 (PUT·DELETE는 쓰기 요청이라 묶음에서 보내지 않음)',
-      observed: `GET ${anonymousGet.url} HTTP ${anonymousGet.status} · 요청 ID ${anonymousGet.requestId}`,
+      observed: seen(anonymousGet),
     },
   ];
 }
