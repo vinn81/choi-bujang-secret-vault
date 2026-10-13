@@ -40,6 +40,19 @@
     .device-state { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 15px; }
     .device-state dt { color: #8ad8df; font-weight: 700; }
     .device-state dd { margin: 0; color: #dce9f7; }
+    .ops-grid { display: grid; gap: 14px; }
+    .ops-card { border: 1px solid #51667c; border-radius: 12px; padding: 14px 16px; background: #1a2a3d; }
+    .ops-card h3 { margin: 0 0 8px; font-size: 17px; }
+    .ops-card ul { margin: 6px 0 0; gap: 4px; }
+    .ops-card li { border: 0; padding: 0; background: none; font-size: 14px; color: #dce9f7; }
+    .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #2f4a63; color: #bcebf0; }
+    .badge.not_run { background: #5a431a; color: #ffe8b8; }
+    .badge.db { background: #234d3a; color: #c7f5dc; }
+    .table-wrap { overflow-x: auto; margin-top: 12px; }
+    table.recheck { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.recheck th, table.recheck td { border-bottom: 1px solid #33485e; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.recheck th { color: #8ad8df; white-space: nowrap; }
+    td.ok { color: #c7f5dc; } td.bad { color: #ffb7c3; } td.skip { color: #ffe8b8; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -109,6 +122,27 @@
       <p id="notes-status" class="status" role="status" aria-live="polite"></p>
       <ul id="notes" aria-live="polite"><li>가상 메모를 불러오는 중입니다.</li></ul>
     </section>
+
+    <section id="ops-panel" class="panel" aria-labelledby="ops-heading" hidden>
+      <div class="toolbar">
+        <h2 id="ops-heading">탈환 작전실</h2>
+        <button id="ops-refresh-button" class="secondary" type="button">작전실 새로고침</button>
+      </div>
+      <p>서버가 이번 요청에서 실제로 실행한 결과와 학습 DB 기록만 보여 줍니다. 화면 문구는 통과 근거가 아니며, 실행하지 않은 항목은 미실행으로 표시합니다. 메모 본문과 토큰은 보여 주지 않고 기록 ID는 가립니다.</p>
+      <p id="ops-status" class="status" role="status" aria-live="polite"></p>
+      <div id="ops-grid" class="ops-grid"></div>
+      <h3>1~11단계 실측 재확인</h3>
+      <p>버튼을 누르면 정상·금지 요청을 실제로 보내고, 기대 결과·실제 응답·요청 ID·확인 시각을 한 표로 남깁니다. 실행하지 않은 시험(41종 총공세 등)은 미실행으로 남기며 통과로 세지 않습니다. 복원 거부 시험은 감사 기록에 실패 시도 한 줄을 남깁니다.</p>
+      <div class="form-actions">
+        <button id="recheck-button" type="button">1~11단계 실측 재확인</button>
+        <button id="recheck-download-button" class="secondary" type="button" disabled>표 내려받기(JSON)</button>
+      </div>
+      <p id="recheck-status" class="status" role="status" aria-live="polite"></p>
+      <div class="table-wrap"><table id="recheck-table" class="recheck" hidden>
+        <thead><tr><th>단계</th><th>구분</th><th>요청</th><th>기대</th><th>실제</th><th>판정</th><th>요청 ID</th><th>확인 시각</th><th>출처</th></tr></thead>
+        <tbody id="recheck-body"></tbody>
+      </table></div>
+    </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
@@ -133,6 +167,7 @@
     const notesStatus = document.querySelector('#notes-status');
     const list = document.querySelector('#notes');
     let currentAccessToken = '';
+    let publicAuthConfig = null;
     let currentUserId = '';
     let notesRequest = 0;
     // 11단계: 서버가 준 기기 세션은 이 변수(메모리)에만 두고 브라우저 저장소에 넣지 않습니다.
@@ -142,6 +177,10 @@
     const deviceRequestButton = document.querySelector('#device-request-button');
     const deviceCheckButton = document.querySelector('#device-check-button');
     const deviceStatus = document.querySelector('#device-status');
+    const opsPanel = document.querySelector('#ops-panel');
+    const opsGrid = document.querySelector('#ops-grid');
+    const opsStatus = document.querySelector('#ops-status');
+    const opsRefreshButton = document.querySelector('#ops-refresh-button');
 
     function setStatus(element, message, isError = false) {
       element.textContent = message;
@@ -176,6 +215,8 @@
     function closeVault(message) {
       deviceSession = '';
       notesPanel.hidden = true;
+      opsPanel.hidden = true;
+      opsGrid.replaceChildren();
       resetEditor();
       clearNotes('서버가 이 기기를 승인한 뒤에 메모를 엽니다.');
       approvalState.textContent = message;
@@ -362,6 +403,7 @@
 
       // 11단계: 로그인 세션(토큰)을 브라우저 저장소에 쓰지 않고 이 페이지의 메모리에만 둡니다.
       // 새로고침하거나 앱을 다시 열면 다시 로그인해야 합니다.
+      publicAuthConfig = authConfig;
       const authClient = window.supabase.createClient(
         authConfig.supabaseUrl,
         authConfig.publishableKey,
@@ -502,7 +544,9 @@
           approvalState.textContent = `승인됨 · 서버가 등록 기기로 확인했습니다 (${until}까지).`;
           setStatus(deviceStatus, '자료실을 열었습니다.');
           notesPanel.hidden = false;
+          opsPanel.hidden = false;
           await loadNotes();
+          await loadOps();
         } else {
           closeVault('승인 대기 · 서버에서 승인되기 전에는 자료를 열지 않습니다.');
           setStatus(deviceStatus, '아직 서버 승인 전입니다.');
@@ -514,6 +558,219 @@
         deviceCheckButton.disabled = false;
       }
     }
+
+    // 12단계: 탈환 작전실. 서버 응답의 출처(server_run·db·repository·deployment·not_run)를 그대로 표시합니다.
+    const SOURCE_LABELS = { server_run: '서버 실행(가상 요청)', db: 'DB 기록', repository: '저장소 사본',
+      deployment: '배포 정보', not_run: '미실행' };
+    function opsCard(title, source, lines) {
+      const card = document.createElement('article');
+      card.className = 'ops-card';
+      const heading = document.createElement('h3');
+      heading.textContent = title;
+      const badge = document.createElement('span');
+      badge.className = `badge ${source}`;
+      badge.textContent = SOURCE_LABELS[source] ?? '출처 불명';
+      heading.append(badge);
+      const items = document.createElement('ul');
+      items.append(...lines.map(text => { const li = document.createElement('li'); li.textContent = text; return li; }));
+      card.append(heading, items);
+      return card;
+    }
+    const checkLine = item => `${item.matched ? '일치' : '불일치'} · ${item.name}: 기대 ${item.expected}, 결과 ${item.decision ?? item.action}${item.reasonCode ? `·${item.reasonCode}` : ''}`;
+
+    function renderOps(data) {
+      const { decider, detection, revocation, restore } = data;
+      const devices = revocation.devices;
+      const audit = restore.audit;
+      const byResult = Object.entries(audit.byResult).map(([key, count]) => `${key} ${count}건`).join(', ') || '없음';
+      opsGrid.replaceChildren(
+        opsCard('판정기 규칙', decider.source, [`규칙 ${decider.ruleIds.length}개: ${decider.ruleIds.join(', ')}`, ...decider.checks.map(checkLine)]),
+        opsCard('운영 판정 집행', decider.liveEnforcement.source, [decider.liveEnforcement.reason]),
+        opsCard('탐지 사건', detection.source, detection.checks.map(checkLine)),
+        opsCard('운영 탐지 사건', detection.liveEvents.source, [detection.liveEvents.reason]),
+        opsCard('회수 제안', revocation.proposal.source, [`이유 ${revocation.proposal.reasonCode ?? '없음'} · 대상 기기 ${revocation.proposal.deviceTargeted ? '1개' : '미확인'} · 폭주 구간 조회 ${revocation.proposal.readsInWindow}건`]),
+        opsCard('내 기기 승인·회수 상태', devices.source, [
+          `승인 ${devices.approved}대 · 승인 대기 ${devices.pending}대 · 유효한 기기 세션 ${devices.activeSessions}개`,
+          `기록 ${devices.records.length}건 (승인 ${devices.approved} + 대기 ${devices.pending} = ${devices.approved + devices.pending})`,
+          ...devices.records.map(item => `${item.id} · ${item.approved ? '승인' : '대기'} · ${item.createdAt}`),
+        ]),
+        opsCard('운영 회수 집행', revocation.liveRevocation.source, [revocation.liveRevocation.reason]),
+        opsCard('복구 기준 버전', restore.verifiedPolicy.source, [`${restore.verifiedPolicy.label} · 커밋 ${restore.verifiedPolicy.commit} · ${restore.verifiedPolicy.verifiedAt}`]),
+        opsCard('현재 배포', restore.deployment.source, [`커밋 ${restore.deployment.commit ?? '확인 불가'} · 단계 ${restore.deployment.step} · 복원 경로 ${restore.deployment.restoreRoute}`]),
+        opsCard('내 복원 감사 기록', audit.source, [
+          `총 ${audit.total}건 (${byResult})`,
+          ...audit.records.map(item => `${item.note} · ${item.result} · ${item.at}`),
+        ]),
+      );
+    }
+
+    async function loadOps() {
+      if (!deviceSession) return;
+      opsRefreshButton.disabled = true;
+      setStatus(opsStatus, '서버 기록을 읽는 중입니다.');
+      try {
+        const data = await apiRequest('/api/ops');
+        renderOps(data);
+        setStatus(opsStatus, `서버 확인 시각 ${new Date(data.checkedAt).toLocaleString('ko-KR')}`);
+      } catch (error) {
+        opsGrid.replaceChildren();
+        setStatus(opsStatus, `작전실 불러오기 실패: ${error.message}`, true);
+      } finally {
+        opsRefreshButton.disabled = false;
+      }
+    }
+    opsRefreshButton.addEventListener('click', () => void loadOps());
+
+    // 12단계: 1~11단계 실측 재확인. 요청마다 요청 ID를 붙여 실제로 보내고, 응답 상태를 그대로 기록합니다.
+    // 토큰·기기 세션·메모 본문은 표와 내려받는 파일에 넣지 않습니다.
+    const recheckButton = document.querySelector('#recheck-button');
+    const recheckDownloadButton = document.querySelector('#recheck-download-button');
+    const recheckStatus = document.querySelector('#recheck-status');
+    const recheckTable = document.querySelector('#recheck-table');
+    const recheckBody = document.querySelector('#recheck-body');
+    let recheckRows = [];
+
+    async function probe(url, { method = 'GET', auth = false, device = false, body } = {}) {
+      const requestId = crypto.randomUUID();
+      const headers = { 'x-request-id': requestId };
+      if (auth && currentAccessToken) headers.Authorization = `Bearer ${currentAccessToken}`;
+      if (device && deviceSession) headers['x-device-session'] = deviceSession;
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
+      let status = 'request_failed';
+      let data = null;
+      let resourceId = null;
+      try {
+        const response = await fetch(url, { method, headers, cache: 'no-store',
+          body: body === undefined ? undefined : JSON.stringify(body) });
+        status = response.status;
+        resourceId = response.headers.get('x-resource-id');
+        try { data = await response.json(); } catch { data = null; }
+      } catch { /* 연결 실패는 request_failed로 남깁니다. */ }
+      return { requestId, status, data, resourceId, checkedAt: new Date().toISOString() };
+    }
+
+    const row = (stage, kind, request, expected, actual, verdict, requestId, checkedAt, source) =>
+      ({ stage, kind, request, expected, actual, verdict, requestId, checkedAt, source });
+    const verdictOf = ok => (ok ? '일치' : '불일치');
+
+    async function runRecheck() {
+      if (!currentAccessToken || !deviceSession) {
+        setStatus(recheckStatus, '로그인하고 기기 승인을 확인한 뒤에 실행할 수 있습니다.', true);
+        return;
+      }
+      recheckButton.disabled = true;
+      setStatus(recheckStatus, '실제 요청을 보내는 중입니다.');
+      const rows = [];
+      const live = '배포 API 실측';
+      const fakeId = crypto.randomUUID();
+
+      const data = await probe('/data.json');
+      rows.push(row('1~2', '정상', 'GET /data.json (비로그인)', '200 · 메모 0건',
+        `${data.status} · 메모 ${Array.isArray(data.data?.notes) ? data.data.notes.length : '확인 불가'}건`,
+        verdictOf(data.status === 200 && data.data?.notes?.length === 0), data.requestId, data.checkedAt, live));
+      for (const [method, label] of [['GET', 'GET /api/notes'], ['POST', 'POST /api/notes']]) {
+        const result = await probe('/api/notes', { method, body: method === 'POST' ? {} : undefined });
+        rows.push(row('3', '금지', `${label} (비로그인)`, '401', String(result.status), verdictOf(result.status === 401),
+          result.requestId, result.checkedAt, live));
+      }
+      const list = await probe('/api/notes', { auth: true, device: true });
+      rows.push(row('3·4·8', '정상', 'GET /api/notes (로그인·승인 기기)', '200 · 자원 notes.own',
+        `${list.status} · 자원 ${list.resourceId ?? '없음'}`, verdictOf(list.status === 200 && list.resourceId === 'notes.own'),
+        list.requestId, list.checkedAt, live));
+      const ownId = Array.isArray(list.data?.notes) && typeof list.data.notes[0]?.id === 'string' ? list.data.notes[0].id : null;
+      if (ownId) {
+        const own = await probe(`/api/notes/${encodeURIComponent(ownId)}`, { auth: true, device: true });
+        rows.push(row('4', '정상', 'GET /api/notes/:id (내 메모)', '200', String(own.status), verdictOf(own.status === 200),
+          own.requestId, own.checkedAt, live));
+      } else {
+        rows.push(row('4', '정상', 'GET /api/notes/:id (내 메모)', '200', '메모 없음', '미실행', '', '', '미실행'));
+      }
+      const other = await probe(`/api/notes/${fakeId}`, { auth: true, device: true });
+      rows.push(row('4', '금지', 'GET /api/notes/:id (내 것이 아닌 ID)', '404', String(other.status), verdictOf(other.status === 404),
+        other.requestId, other.checkedAt, live));
+      if (publicAuthConfig) {
+        const direct = await (async () => {
+          const requestId = crypto.randomUUID();
+          let status = 'request_failed';
+          try {
+            const response = await fetch(new URL('/rest/v1/notes?select=id', publicAuthConfig.supabaseUrl), { cache: 'no-store',
+              headers: { apikey: publicAuthConfig.publishableKey, Authorization: `Bearer ${publicAuthConfig.publishableKey}` } });
+            status = response.status;
+          } catch { /* 연결 실패 */ }
+          return { requestId, status, checkedAt: new Date().toISOString() };
+        })();
+        rows.push(row('5', '금지', '원본 API 직접 GET (공개 키)', '401 또는 403', String(direct.status),
+          verdictOf(direct.status === 401 || direct.status === 403), direct.requestId, direct.checkedAt, live));
+      }
+      const ops = await probe('/api/ops', { auth: true, device: true });
+      const kindLabel = kind => (kind === 'normal' ? '정상' : '금지');
+      if (ops.status === 200) {
+        for (const item of [...ops.data.decider.checks, ...ops.data.detection.checks]) {
+          rows.push(row(String(item.stage), kindLabel(item.kind), item.name, item.expected,
+            `${item.decision ?? item.action}${item.reasonCode ? `·${item.reasonCode}` : ''}`, verdictOf(item.matched),
+            item.requestId, item.checkedAt, '서버 실행(가상 요청)'));
+        }
+      } else {
+        rows.push(row('6~9', '정상·금지', '판정기·탐지 서버 실행', '200', String(ops.status), '불일치', ops.requestId, ops.checkedAt, live));
+      }
+      rows.push(row('7', '금지', '재인증 전 실제 자료 차단', '운영 엔진 집행', '실행하지 않음', '미실행', '', '', '미실행'));
+      rows.push(row('9', '금지', '운영 엔진의 실제 회수·경과 시간', '운영 엔진 집행', '실행하지 않음', '미실행', '', '', '미실행'));
+      const restoreAnon = await probe('/api/restore', { method: 'POST', body: { id: fakeId } });
+      rows.push(row('10', '금지', 'POST /api/restore (비로그인)', '401', String(restoreAnon.status), verdictOf(restoreAnon.status === 401),
+        restoreAnon.requestId, restoreAnon.checkedAt, live));
+      const restoreOther = await probe('/api/restore', { method: 'POST', auth: true, device: true, body: { id: fakeId } });
+      rows.push(row('10', '금지', 'POST /api/restore (사본 없는 ID)', '404 · backup_not_found',
+        `${restoreOther.status} · ${restoreOther.data?.error ?? '-'}`,
+        verdictOf(restoreOther.status === 404 && restoreOther.data?.error === 'backup_not_found'),
+        restoreOther.requestId, restoreOther.checkedAt, live));
+      rows.push(row('10', '정상', '내 메모 한 건 복원', '200', '자료를 바꾸는 요청이라 자동 실행하지 않음', '미실행', '', '', '미실행'));
+      const noDevice = await probe('/api/notes', { auth: true });
+      rows.push(row('11', '금지', 'GET /api/notes (로그인, 기기 세션 없음)', '403 · device_not_approved',
+        `${noDevice.status} · ${noDevice.data?.error ?? '-'}`,
+        verdictOf(noDevice.status === 403 && noDevice.data?.error === 'device_not_approved'), noDevice.requestId, noDevice.checkedAt, live));
+      const registerAnon = await probe('/api/device/register', { method: 'POST', body: {} });
+      rows.push(row('11', '금지', 'POST /api/device/register (비로그인)', '401', String(registerAnon.status),
+        verdictOf(registerAnon.status === 401), registerAnon.requestId, registerAnon.checkedAt, live));
+      const verify = await probe('/api/device/verify', { method: 'POST', auth: true, body: {} });
+      rows.push(row('11', '정상', 'POST /api/device/verify (로그인, 승인 확인 시작)', '200 · 서명 요청 옵션',
+        `${verify.status} · ${verify.data?.options ? '옵션 받음' : (verify.data?.status ?? '-')}`,
+        verdictOf(verify.status === 200 && Boolean(verify.data?.options)), verify.requestId, verify.checkedAt, live));
+      rows.push(row('총공세', '정상·금지', '41종 공격 방어', '심판 실행', '실행하지 않음', '미실행', '', '', '미실행'));
+
+      recheckRows = rows;
+      recheckBody.replaceChildren(...rows.map(item => {
+        const tr = document.createElement('tr');
+        const cells = [item.stage, item.kind, item.request, item.expected, item.actual, item.verdict,
+          item.requestId ? item.requestId.slice(0, 8) : '-', item.checkedAt ? new Date(item.checkedAt).toLocaleTimeString('ko-KR') : '-', item.source];
+        tr.append(...cells.map((value, index) => {
+          const td = document.createElement('td');
+          td.textContent = value;
+          if (index === 5) td.className = value === '일치' ? 'ok' : value === '미실행' ? 'skip' : 'bad';
+          if (index === 6 && item.requestId) td.title = item.requestId;
+          return td;
+        }));
+        return tr;
+      }));
+      recheckTable.hidden = false;
+      recheckDownloadButton.disabled = false;
+      const count = verdict => rows.filter(item => item.verdict === verdict).length;
+      setStatus(recheckStatus, `실측 ${rows.length - count('미실행')}건 중 일치 ${count('일치')}건 · 불일치 ${count('불일치')}건 · 미실행 ${count('미실행')}건. 이 표는 학생 자기 점검이며 심판 판정이 아닙니다.`,
+        count('불일치') > 0);
+      recheckButton.disabled = false;
+    }
+
+    function downloadRecheck() {
+      const blob = new Blob([`${JSON.stringify({ schema: 'aleph.recheck.v1', createdAt: new Date().toISOString(), rows: recheckRows }, null, 2)}\n`],
+        { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `recheck-${new Date().toISOString().slice(0, 19).replace(/[:T]/gu, '-')}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+
+    recheckButton.addEventListener('click', () => void runRecheck());
+    recheckDownloadButton.addEventListener('click', downloadRecheck);
 
     deviceRequestButton.addEventListener('click', () => void requestDeviceApproval());
     deviceCheckButton.addEventListener('click', () => void checkDeviceApproval());

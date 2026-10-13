@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8, 9, 10, 11].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   let originalApi;
   try {
@@ -76,6 +76,8 @@ export async function runAttackChecks(config) {
   // 11단계: 로그인 없이 기기 승인 요청·확인 경로를 부르면 401이어야 합니다.
   const anonymousDevice = config.step >= 11 ? await Promise.all(['/api/device/register', '/api/device/verify']
     .map(path => inspect(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }))) : null;
+  // 12단계: 로그인 없이 탈환 작전실 요약을 읽으면 401이어야 합니다(묶음 점검 상한 20개라 기기 경로 줄에 함께 적음).
+  const anonymousOps = config.step >= 12 ? await inspect('/api/ops') : null;
   const [anonymousGet, anonymousPut, anonymousDelete] = await Promise.all([
     inspect(itemPath),
     inspect(itemPath, {
@@ -230,8 +232,8 @@ export async function runAttackChecks(config) {
     ...(anonymousDevice ? [
       {
         attackId: 'anonymous_device_flow',
-        expected: '비로그인 POST /api/device/register·verify는 모두 HTTP 401, 승인 전 학생 메모 요청 403은 학생 직접 확인',
-        observed: `register HTTP ${anonymousDevice[0].status} · verify HTTP ${anonymousDevice[1].status}`,
+        expected: '비로그인 POST /api/device/register·verify와 GET /api/ops는 모두 HTTP 401, 승인 전 학생 메모 요청 403은 학생 직접 확인',
+        observed: `register HTTP ${anonymousDevice[0].status} · verify HTTP ${anonymousDevice[1].status}${anonymousOps ? ` · ops HTTP ${anonymousOps.status}` : ''}`,
       },
     ] : []),
     {

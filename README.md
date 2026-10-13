@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 11단계 — 나만의 접속 앱을 완성합니다
+# BYTE BACK 방어전 12단계 — 탈환 작전실을 완성합니다
 
-브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살립니다. 설치형 웹앱 화면과 패스키 기기 승인 흐름을 붙여 서버가 승인한 기기에서만 메모를 여는 11단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
+브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살립니다. 설치형 웹앱 화면과 패스키 기기 승인 흐름을 붙여 서버가 승인한 기기에서만 메모를 열고, 탈환 작전실에서 판정·탐지·회수·복구의 실제 결과를 읽는 12단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
 ## 현재 작동
 
@@ -16,9 +16,54 @@
 - `npm run policy:diff`·`policy:restore`는 검증한 정책 사본과의 차이를 보여 주고 확인 번호를 거쳐서만 정책 파일을 되돌립니다. `POST /api/restore`는 비공개 사본 `notes_backup`에서 로그인한 본인의 메모 한 건만 ID·소유자·내용 해시를 대조해 복원하고 감사 기록을 덧붙입니다.
 - 설치형 웹앱: `manifest.webmanifest`(앱 이름 `최부장 비밀 자료실`), 아이콘, 오프라인 안내(`offline.html`·`sw.js`, API 응답과 메모는 저장하지 않음). 설치 여부는 기기 확인이 아닙니다.
 - 학생 로그인은 서버가 승인한 기기의 세션(`x-device-session`)이 있어야 메모·복원 API가 열립니다. 없으면 자료 조회 전에 `403 device_not_approved`입니다.
+- 탈환 작전실(`GET /api/ops`, 로그인·승인 기기 필요)은 판정기·탐지를 서버에서 직접 실행한 결과, 내 기기 승인 상태와 복원 감사 기록(DB), 복구 기준 버전을 출처와 함께 보여 주고 운영 엔진 집행은 미실행으로 표시합니다. 메모 본문은 보여 주지 않고 기록 ID는 가립니다.
+- 작전실의 "1~11단계 실측 재확인"은 정상·금지 요청을 실제로 보내 기대·실제 결과·요청 ID·확인 시각을 한 표로 남기고 JSON으로 내려받게 합니다. 41종 총공세처럼 실행하지 않은 시험은 미실행으로 남깁니다.
 - `/data.json`의 `notes`는 빈 배열이며 `/aleph.json`에는 배포 정보와 허용 경로를 기록합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
+
+## 설치·실행·중지·복구 안내
+
+기준 커밋은 마지막으로 심판이 검사해 통과한 `951c4f6`(11단계)입니다. 12단계 탈환 작전실(`api/ops.js`, 작전실 화면, 실측 재확인)은 그 뒤 12단계 저장점 커밋에서 더했고 아직 심판 검사 전입니다.
+
+### 출처 구분
+
+| 구분 | 맡는 일 | 위치 |
+|---|---|---|
+| 제공 엔진: **ALEPH SDP 엔진** (운영 측 제공, 이 저장소에 없음) | 신원·기기·경로 확인, 미등록 기기 릴레이 차단, 학생 판정기 `decide(request)` 호출(`aleph.decision.v1` 계약), 탐지 사건 전달과 회수 집행, 심판 토큰 발급 | `docs/DECIDER_REQUEST.md`가 설명하는 `student-kit/sdp-core/decision-contract.mjs`, `aleph.config.json`의 `judgeIssuer`(운영 측이 채움) |
+| 시작 틀 (`ChoiTimo/aleph-defense-starter`, 초기 커밋 `241e44e`) | 제출 묶음, 판정기·탐지 연습 시험, 배포 정보 생성, 로그인 토큰 검증, 계약 문서, XDR 연습 사건 | `scripts/bundle.mjs`·`decider-test.mjs`·`detect-test.mjs`·`fixture-7.mjs`·`xdr-run.mjs`·`build-public.mjs`·`deployment-identity.mjs`, `src/verify-login.mjs`, `docs/`, `xdr/fixtures/`, `package/` |
+| 학생 몫 | 판정기 규칙(`device_registered`·`step_up_required`·`resource_zone`), 탐지 규칙(`burst_read`)과 회수 제안, 자원 구역, 자료실 API, 정책·메모 복구, 접속 앱(설치형 화면·패스키 기기 승인), 자기 점검, 시험 | `src/decider.mjs`·`detect.mjs`·`resources.mjs`·`device.mjs`·`device-flow.mjs`·`attack-check.mjs`, `api/notes.js`·`api/notes/[id].js`·`api/restore.js`·`api/device/`, `public/`, `scripts/policy-*.mjs`, `policy/`, `xdr/brute-force/`·`xdr/web-injection/`, `test/` |
+
+학생 판정기와 탐지 규칙은 ALEPH SDP 엔진이 부르는 함수입니다. 이 저장소만으로는 엔진의 실제 판정·회수 집행을 실행할 수 없으며, `npm run decider:test`·`detect:test`는 가상 요청 연습입니다.
+
+### 설치 (재현 순서)
+
+1. Node.js 22 이상을 준비하고 저장소를 받아 `npm ci`로 의존성을 설치합니다.
+2. Supabase 학습 DB에서 `public.notes`의 PUBLIC·anon·authenticated 직접 권한이 회수돼 있는지 확인합니다(5단계 기록).
+3. Supabase SQL Editor에서 `policy/restore-backup.sql`, `policy/device-approval.sql`을 차례로 실행해 사본·감사·기기 표를 만듭니다. 파일 안의 주석 예시(사본 넣기, 기기 승인)는 필요할 때 따로 실행합니다.
+4. Vercel 프로젝트에 이 저장소를 연결하고 **Settings → Environment Variables**에 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`의 값을 직접 넣습니다. 값은 저장소·README·제출 묶음에 적지 않습니다.
+5. 새 주소로 배포했다면 `aleph.config.json`의 `publicAppUrl`을 그 주소로 맞춥니다. 패스키는 이 주소의 호스트 이름으로 만들어지므로 다르면 기기 승인이 실패합니다. `judgeIssuer`는 운영 측 값이라 바꾸지 않습니다.
+
+### 실행
+
+1. 로컬 시험: `npm.cmd run test:notes`, `test:restore`, `test:device`, `test:ops`, `test:r5`, `decider:test`, `fixture:7`, `detect:test`, `xdr:test`, `policy:diff`
+2. 배포 화면: 로그인 → "이 기기 승인 요청" → SQL Editor에서 그 기기만 `approved = true` → "승인 확인하고 자료실 열기" → 메모 자료실과 탈환 작전실이 열립니다.
+3. 작전실의 "1~11단계 실측 재확인"으로 정상·금지 요청의 실제 결과를 요청 ID·시각과 함께 표로 남깁니다.
+4. 제출: `bundle-notes.json`(커밋하지 않음)에 설명 세 줄을 적고 `npm.cmd run bundle`을 실행합니다.
+
+### 중지
+
+- 한 기기의 접속 중지: SQL Editor에서 `update public.device_credentials set approved = false, approved_at = null where id = '<기기 ID>';` 다음 요청부터 그 기기의 세션이 `403`이 됩니다.
+- 로그인 세션 중지: 로그아웃하거나 화면을 닫습니다. 세션은 메모리에만 있어 새로고침하면 사라집니다.
+- 서비스 전체: Vercel 프로젝트의 **Deployments**에서 이전 정상 배포로 되돌립니다(Instant Rollback). 학습 DB 자료와 감사 기록은 지우지 않습니다.
+- 엔진 쪽 판정·회수는 ALEPH SDP 엔진(운영 측)이 맡으며 학생이 중지하지 않습니다.
+
+### 복구
+
+1. 정책 파일: `npm.cmd run policy:diff`로 검증 사본과의 차이를 보고, `npm.cmd run policy:restore`의 미리보기와 확인 번호를 확인한 뒤 `-- --apply --confirm=<확인 번호>`로 되돌립니다. 기록은 `policy/restore-audit.log`에 덧붙습니다.
+2. 코드 되돌리기: 문제 커밋만 `git revert <커밋>`으로 되돌리고 `git reset --hard`는 쓰지 않습니다.
+3. 메모 한 건: `notes_backup`에 검증된 사본이 있으면 `POST /api/restore`로 그 한 건만 되돌립니다. 모든 시도는 `notes_restore_audit`에 남습니다.
+4. 복구 뒤 재확인: 작전실 실측 재확인과 `npm.cmd run bundle`의 자기 점검으로 1~11단계 정상·금지 결과를 다시 봅니다.
 
 ## 보너스 XDR xdr-01
 
@@ -160,7 +205,7 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 - 로그인 발급자·대상·JWKS: `aleph.config.json`의 `identityProvider`
 - 허용 경로: `GET|POST /api/notes`, `GET|PUT|DELETE /api/notes/:id` (9단계 검증 정책과 같음)
 - 복원 경로(`restoreRoute`): `POST /api/restore` (허용 경로 목록은 바꾸지 않고 이 칸에만 적음)
-- 단계: `11`
+- 단계: `12`
 - 원본 API: `aleph.config.json`의 쿼리 없는 `originalApiUrl`
 - `src/decider.mjs`의 구현 규칙: `starter.deny`, `device_registered`, `step_up_required`, `resource_zone`
 
@@ -180,6 +225,14 @@ Vercel **Settings → Environment Variables**에는 다음 서버 전용 이름�
 위 기록은 학생의 실행·관찰과 로컬 자기 점검이며 심판 판정이 아닙니다.
 
 ## 다시 확인하기
+
+12단계 탈환 작전실을 확인합니다.
+
+```powershell
+npm.cmd run test:ops
+```
+
+정상 결과는 4건 통과입니다. 배포 화면에서는 기기 승인 뒤 작전실 카드의 수치가 함께 표시된 가린 기록 목록과 맞고, "1~11단계 실측 재확인"의 상태 줄이 `불일치 0건`이어야 합니다. 거부되어야 할 결과는 비로그인 `GET /api/ops` `401`, 기기 세션 없는 학생 요청 `403`입니다.
 
 11단계 기기 승인 흐름을 확인합니다.
 
