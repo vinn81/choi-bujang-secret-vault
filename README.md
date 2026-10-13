@@ -40,7 +40,8 @@
 - 기기 개인키는 기기의 패스키 인증기 안에만 있고, 서버(`device_credentials`)에는 공개키와 승인 여부만 둡니다. 기기 세션 원문은 응답으로 한 번만 주고 DB(`device_sessions`)에는 SHA-256 지문만 저장합니다. 화면은 기기 세션을 메모리에만 두고 브라우저 저장소에 넣지 않습니다.
 - 화면의 "이 기기 승인 요청" 버튼은 승인 대기로만 등록합니다. 승인은 학생이 Supabase SQL Editor에서 `device_credentials.approved`를 바꿔서 합니다(`policy/device-approval.sql`). 승인을 거두면 다음 요청부터 그 기기의 세션이 거부됩니다.
 - 심판 로그인은 기기 세션 검사를 받지 않습니다. 심판 토큰에 기기 정보가 없어 이전 단계 확인을 막지 않기 위해서입니다.
-- 남은 한계: Supabase 로그인 세션은 아직 브라우저 `localStorage`에 저장됩니다. 메모·복원 API 파일이 바뀌어 `policy:diff`는 9단계 검증 정책 대비 `api/notes.js`·`api/notes/[id].js`를 의도한 차이로 보여 줍니다.
+- 로그인 세션도 브라우저 저장소에 쓰지 않습니다. 화면의 Supabase 로그인은 `persistSession: false`로 세션을 메모리에만 두며, 새로고침하거나 앱을 다시 열면 다시 로그인합니다(Chromium 확인: 이전 설정은 `sb-...-auth-token`을 `localStorage`에 썼고, 수정 뒤에는 아무것도 쓰지 않음).
+- 메모·복원 API 파일이 바뀌어 `policy:diff`는 9단계 검증 정책 대비 `api/notes.js`·`api/notes/[id].js`를 의도한 차이로 보여 줍니다.
 
 로컬 확인(2026-10-13): `npm.cmd run test:device` 5건 통과. 승인 전 메모 `403`(메모 조회 안 함), 승인 요청만으로는 세션 없음, DB에서 승인한 기기만 세션을 받아 메모 `200`, 다른 사용자·승인 취소·만료·서명 실패 `403`. 기존 `test:notes`·`test:restore`는 승인된 기기 조건으로 통과했습니다. 가상 자료 연습이며 심판 판정이 아닙니다.
 

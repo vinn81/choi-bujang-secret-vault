@@ -360,9 +360,12 @@
         return;
       }
 
+      // 11단계: 로그인 세션(토큰)을 브라우저 저장소에 쓰지 않고 이 페이지의 메모리에만 둡니다.
+      // 새로고침하거나 앱을 다시 열면 다시 로그인해야 합니다.
       const authClient = window.supabase.createClient(
         authConfig.supabaseUrl,
         authConfig.publishableKey,
+        { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } },
       );
       const { data: authListener } = authClient.auth.onAuthStateChange((event, session) => {
         currentAccessToken = session?.access_token || '';
@@ -380,7 +383,7 @@
           resetSignedOutState();
         }
         if (event === 'INITIAL_SESSION') {
-          setStatus(authStatus, session ? '저장된 로그인 상태를 확인했습니다.' : '현재 로그아웃 상태입니다.');
+          setStatus(authStatus, session ? '로그인 상태를 확인했습니다.' : '로그인 정보는 이 기기에 저장하지 않습니다. 열 때마다 로그인해 주세요.');
         } else if (event === 'SIGNED_IN') {
           setStatus(authStatus, '로그인했습니다.');
         } else if (event === 'SIGNED_OUT') {
