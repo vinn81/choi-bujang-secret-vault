@@ -28,6 +28,10 @@ grant select on public.notes_backup to service_role;
 revoke update, delete, truncate on public.notes_restore_audit from service_role;
 grant select, insert on public.notes_restore_audit to service_role;
 
+-- 10단계 수정: 성공·실패와 상관없이 모든 복원 시도를 감사 기록에 남기도록 결과 칸을 더하고, 실패 시도는 복원 뒤 해시가 비어 있을 수 있게 합니다.
+alter table public.notes_restore_audit add column if not exists result text not null default 'restored';
+alter table public.notes_restore_audit alter column after_sha256 drop not null;
+
 -- 사본 만들기: 침해 전에 검증한 상태에서 대상 메모만 넣습니다(예: 시험 계정 B의 메모 한 건).
 -- 내용 해시는 제목 + 줄바꿈 + 본문의 SHA-256이며 api/restore.js와 같은 식입니다.
 -- insert into public.notes_backup (id, owner_id, title, content, content_sha256)

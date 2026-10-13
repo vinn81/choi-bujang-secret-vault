@@ -44,10 +44,10 @@
 - 서비스: Vercel 서버 함수 `api/restore.js`
 - 경로: `POST /api/restore`, 본문 `{ "id": "<메모 UUID>" }` 하나만 받습니다. 로그인(Bearer)이 필요합니다.
 - 비공개 사본 표 `notes_backup`에서 검증된 로그인 사용자의 그 ID 한 건만 찾고, ID·소유자·내용 해시(제목 + 줄바꿈 + 본문의 SHA-256)를 대조한 뒤 그 한 건만 씁니다. 다시 읽어 같은지 확인하고, 응답에는 내용 없이 `id`·`restored`·`contentSha256`만 돌려줍니다.
-- 다른 메모와 다른 사용자의 같은 ID 메모는 건드리지 않습니다. 감사 기록 표 `notes_restore_audit`에는 메모 ID·소유자·복원 전후 해시만 덧붙입니다.
+- 다른 메모와 다른 사용자의 같은 ID 메모는 건드리지 않습니다. 감사 기록 표 `notes_restore_audit`에는 로그인이 검증된 모든 복원 시도를 성공·실패와 상관없이 메모 ID·소유자·결과(`restored`·`unchanged`·`backup_not_found`·`backup_verification_failed` 등)·복원 전후 해시만으로 덧붙입니다. 감사 기록을 쓰지 못하면 성공 응답을 주지 않습니다.
 - 사본 표와 감사 표는 `policy/restore-backup.sql`을 Supabase SQL Editor에서 학생이 직접 실행해 만듭니다. 두 표 모두 anon·authenticated 권한이 없고, 감사 표는 수정·삭제 권한이 없습니다.
 
-로컬 확인(2026-10-13): `npm.cmd run test:restore` 4건 통과. 시험 계정 B의 가상 메모 한 건이 사본과 같은 ID·소유자·내용 해시로 복원되고, B의 다른 메모와 A 메모는 그대로, 감사 기록은 덧붙기만 했습니다. B의 A 메모 복원 `404`, 본문 추가 필드 `400`, 사본 해시 불일치 `409`, 무로그인 `401`. 가상 자료 연습이며 심판 판정이 아닙니다.
+로컬 확인(2026-10-13): `npm.cmd run test:restore` 6건 통과. 거부된 시도(`backup_not_found`, `backup_verification_failed`)와 이미 같은 메모(`unchanged`)도 감사 기록에 남고, 감사 기록 쓰기가 실패하면 `500`입니다. 시험 계정 B의 가상 메모 한 건이 사본과 같은 ID·소유자·내용 해시로 복원되고, B의 다른 메모와 A 메모는 그대로, 감사 기록은 덧붙기만 했습니다. B의 A 메모 복원 `404`, 본문 추가 필드 `400`, 사본 해시 불일치 `409`, 무로그인 `401`. 가상 자료 연습이며 심판 판정이 아닙니다.
 
 학생 확인(2026-10-13, 배포 경로·학습 DB): `policy/restore-backup.sql`로 사본·감사 표를 만들고 시험 계정 B의 메모 한 건을 사본으로 떴습니다. 화면에서 제목을 바꾼 뒤 B가 `POST /api/restore`를 보내 `200`·`restored: true`를 받았고, 제목이 원래대로 돌아왔습니다. SQL 대조에서 `same_owner`·`same_hash`가 모두 `true`, `audit_rows`는 1이었습니다. A로 같은 메모 복원을 요청하면 `404 backup_not_found`였습니다. 심판 판정이 아닙니다.
 
@@ -173,7 +173,7 @@ npm.cmd run policy:diff
 npm.cmd run test:restore
 ```
 
-정상 결과는 `사본 검증: 통과`와 복원 시험 4건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 저장점에서 `allowedRoutes`에 `POST /api/restore`를 더해 `policy:diff`가 이 정책 항목 차이를 보여 줍니다. 심판 통과 뒤 검증 사본을 10단계 커밋으로 갱신하기 전에는 `policy:restore`를 실행하면 이 경로가 허용 목록에서 빠지므로 미리보기를 확인하고 적용하지 않습니다.
+정상 결과는 `사본 검증: 통과`와 복원 시험 6건 통과입니다. 거부되어야 할 결과는 사본이 없거나 위조됐을 때 `정책 비교 중단`, B의 A 메모 복원 `404`, 사본 해시 불일치 `409`입니다. 저장점에서 `allowedRoutes`에 `POST /api/restore`를 더해 `policy:diff`가 이 정책 항목 차이를 보여 줍니다. 심판 통과 뒤 검증 사본을 10단계 커밋으로 갱신하기 전에는 `policy:restore`를 실행하면 이 경로가 허용 목록에서 빠지므로 미리보기를 확인하고 적용하지 않습니다.
 
 9단계 탐지 함수를 확인합니다.
 

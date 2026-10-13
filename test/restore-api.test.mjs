@@ -90,7 +90,8 @@ test('B는 사본에서 자기 메모 한 건만 복원하고 ID·소유자·내
   assert.deepEqual(db.tables.notes.get(NOTE_A), before.a);
   assert.equal(db.tables.notes_restore_audit.length, 1);
   assert.deepEqual(Object.keys(db.tables.notes_restore_audit[0]).sort(),
-    ['after_sha256', 'before_sha256', 'note_id', 'owner_id']);
+    ['after_sha256', 'before_sha256', 'note_id', 'owner_id', 'result']);
+  assert.equal(db.tables.notes_restore_audit[0].result, 'restored');
 });
 
 test('지워진 B 메모는 같은 ID로 다시 추가되고 감사 기록은 덧붙기만 한다', async () => {
@@ -104,16 +105,20 @@ test('지워진 B 메모는 같은 ID로 다시 추가되고 감사 기록은 �
   assert.equal(db.tables.notes_restore_audit[0].after_sha256, 'earlier');
 });
 
-test('B는 A 메모를 복원할 수 없고 본문의 owner_id·추가 필드는 거부된다', async () => {
+test('B는 A 메모를 복원할 수 없고, 거부된 시도도 감사 기록에 남는다', async () => {
   const db = fakeSupabase();
+  const before = { ...db.tables.notes.get(NOTE_A) };
   const other = await restore(db, { authorization: 'Bearer token-b' }, { id: NOTE_A });
   assert.equal(other.statusCode, 404);
+  assert.deepEqual(db.tables.notes.get(NOTE_A), before);
+  assert.deepEqual(db.tables.notes_restore_audit, [{ note_id: NOTE_A, owner_id: USER_B,
+    result: 'backup_not_found', before_sha256: null, after_sha256: null }]);
   const extra = await restore(db, { authorization: 'Bearer token-b' }, { id: NOTE_A, owner_id: USER_B });
   assert.equal(extra.statusCode, 400);
-  assert.equal(db.tables.notes_restore_audit.length, 0);
+  assert.equal(db.tables.notes_restore_audit.length, 1);
 });
 
-test('사본 해시가 맞지 않거나 로그인이 없거나 POST가 아니면 복원하지 않는다', async () => {
+test('사본 해시가 맞지 않거나 로그인이 없거나 POST가 아니면 복원하지 않고, 해시 불일치만 감사 기록에 남는다', async () => {
   const db = fakeSupabase();
   db.tables.notes_backup.get(NOTE_B).content_sha256 = '0'.repeat(64);
   const tampered = await restore(db, { authorization: 'Bearer token-b' }, { id: NOTE_B });
@@ -121,5 +126,24 @@ test('사본 해시가 맞지 않거나 로그인이 없거나 POST가 아니면
   assert.equal(db.tables.notes.get(NOTE_B).title, '침공으로 바뀐 제목');
   assert.equal((await restore(db, {}, { id: NOTE_B })).statusCode, 401);
   assert.equal((await restore(db, { authorization: 'Bearer token-b' }, { id: NOTE_B }, 'GET')).statusCode, 405);
-  assert.equal(db.tables.notes_restore_audit.length, 0);
+  assert.deepEqual(db.tables.notes_restore_audit.map(row => row.result), ['backup_verification_failed']);
+});
+
+test('감사 기록을 쓰지 못하면 성공 응답을 주지 않는다', async () => {
+  const db = fakeSupabase();
+  const fetchImpl = async (url, init) => (new URL(url).pathname.endsWith('/notes_restore_audit')
+    ? new Response(null, { status: 500 }) : db.fetch(url, init));
+  const out = output();
+  await handleRestore({ method: 'POST', headers: { authorization: 'Bearer token-b' }, body: { id: NOTE_B } },
+    out, { env, fetchImpl, verifyAuthorization });
+  assert.equal(out.statusCode, 500);
+  assert.deepEqual(out.body, { error: 'restore_audit_failed' });
+});
+
+test('이미 사본과 같은 메모는 쓰지 않고 unchanged로 감사 기록에 남긴다', async () => {
+  const db = fakeSupabase();
+  const out = await restore(db, { authorization: 'Bearer token-a' }, { id: NOTE_A });
+  assert.equal(out.statusCode, 200);
+  assert.equal(out.body.restored, false);
+  assert.equal(db.tables.notes_restore_audit[0].result, 'unchanged');
 });
