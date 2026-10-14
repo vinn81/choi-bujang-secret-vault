@@ -101,6 +101,12 @@
 
 확인: `npm.cmd run xdr:run -- privilege`(결과 `block 9 · alert 8 · record 9`, 정상 pv-18~26 모두 `record`), `node xdr/privilege/respond.mjs`(거부 규칙 8개, pv-01~09 주소만 `deny`). 판정기 계약에는 출발 IP와 Wazuh 계정 이름을 가명 `subjectId`로 잇는 값이 없어 실제 세션 회수는 미연결이며, 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
 
+## 보너스 XDR xdr-06
+
+`xdr/fixtures/exfiltration.json`의 수업용 외부 전송 경보(30건)를 MITRE ATT&CK T1048·T1041 기반 패턴 3개(처음 보는 목적지로 대용량 전송, 명령 통로로 같은 목적지에 반복 전송, 업무 시간 밖 압축 파일 반출, `xdr/exfiltration/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 큰 전송(50MB 이상)에 처음 보는 목적지·많은 파일(50건 이상)·반복(5회 이상)·업무 시간 밖·압축·명령 통로·평소 안 쓰는 포트 같은 신호가 겹치고 1건·실패·전송 없음·백업처럼 보임·평소 목적지 같은 사정이 없을 때만 `block`입니다. 작거나 사정이 있으면 `alert`, 자료실의 작은 읽기·저장은 `record`입니다. `respond.mjs`는 출발 주소가 아니라 **목적지**를 막습니다. `block` 경보의 목적지만 `xdr/exfiltration/deny-rules.json`(`target: destination`)에 15분 만료·근거 경보 번호와 함께 넣고, 정상 이벤트가 향한 목적지(자료실 등)는 넣지 않으며, `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 판정기 연결은 같은 파일의 `decideWithDestinationDeny`(엔진이 확인한 목적지만 검사하고 나머지는 기존 판정기로 넘김)입니다.
+
+확인: `npm.cmd run xdr:run -- exfiltration`(결과 `block 10 · alert 10 · record 10`, 정상 ex-21~30 모두 `record`), `node xdr/exfiltration/respond.mjs`(목적지 거부 규칙 8개, ex-01~10 목적지만 `deny`). 판정기 계약에 목적지 주소가 없어 실제 차단은 미연결이며, 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
+
 ## 11단계 접속 앱과 기기 승인
 
 - 서비스·경로: `POST /api/device/register`(이 기기를 승인 대기로 등록), `POST /api/device/verify`(패스키 서명 검증 뒤 승인된 기기에만 30분 기기 세션). 두 경로는 `allowedRoutes`에 더하지 않고 여기에만 적습니다.

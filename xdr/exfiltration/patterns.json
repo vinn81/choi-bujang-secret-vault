@@ -1,0 +1,31 @@
+{
+  "techniques": [
+    {
+      "id": "T1041",
+      "name": "Exfiltration Over C2 Channel",
+      "source": "https://attack.mitre.org/techniques/T1041/"
+    },
+    {
+      "id": "T1048",
+      "name": "Exfiltration Over Alternative Protocol",
+      "source": "https://attack.mitre.org/techniques/T1048/"
+    }
+  ],
+  "patterns": [
+    {
+      "name": "처음 보는 목적지로 대용량 전송",
+      "condition": "평소 목적지(자료실·수업 자료 주소)가 아닌 처음 보는 바깥 목적지(data.dstip)로 큰 전송(data.bytes 수십 MB 이상)이나 많은 파일(data.files 수십 건 이상)이 짧은 시간에 나가거나, 평소에 쓰지 않던 포트로 자료가 연속 전송된다.",
+      "evidence": "MITRE ATT&CK T1048: 공격자는 기존 명령 통로와 다른 프로토콜·포트로 자료를 바깥 목적지에 내보내 유출한다."
+    },
+    {
+      "name": "명령 통로로 같은 목적지에 반복 전송",
+      "condition": "명령 통로(원격 조종 연결)로 큰 파일이 나가거나, 같은 바깥 목적지로 대용량 전송이 여러 번(data.count 5회 이상) 반복된다. 큰 파일이 아닌 짧은 이름 몇 건은 이 패턴만으로 단정하지 않는다.",
+      "evidence": "MITRE ATT&CK T1041: 공격자는 이미 열어 둔 명령 통로(C2)를 그대로 써서 훔친 자료를 평소 통신에 섞어 내보낸다."
+    },
+    {
+      "name": "업무 시간 밖 압축 파일 반출",
+      "condition": "압축 파일이 업무(수업) 시간 밖에, 또는 여러 개가 연속으로 처음 보는 바깥 주소로 나간다. 압축만 하고 바깥 전송이 없거나 수업 시간의 백업처럼 보이는 한 건은 해당하지 않는다.",
+      "evidence": "MITRE ATT&CK T1048: 공격자는 명령 통로가 아닌 다른 경로로 자료 묶음을 처음 보는 바깥 목적지에 내보내며, 정상 업무 흐름과 다른 시각·형태의 반출이 그 흔적이 된다."
+    }
+  ]
+}

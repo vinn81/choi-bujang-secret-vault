@@ -1,0 +1,82 @@
+{
+  "schema": "aleph.xdr.deny-rules.v1",
+  "moduleKey": "exfiltration",
+  "target": "destination",
+  "generatedAt": "2026-10-14T01:30:31.612Z",
+  "rules": [
+    {
+      "ruleId": "xdr.exfiltration.5635eddb1a48",
+      "action": "deny",
+      "destinationAddress": "203.0.113.50",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-01",
+        "ex-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.7a1c98a08d89",
+      "action": "deny",
+      "destinationAddress": "198.51.100.40",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-02",
+        "ex-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.358c0fa00e74",
+      "action": "deny",
+      "destinationAddress": "203.0.113.55",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.be6e6937524f",
+      "action": "deny",
+      "destinationAddress": "192.0.2.90",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.f536e9d220f4",
+      "action": "deny",
+      "destinationAddress": "198.51.100.45",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.851162cb0a64",
+      "action": "deny",
+      "destinationAddress": "203.0.113.60",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-08"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.a7d115410cff",
+      "action": "deny",
+      "destinationAddress": "203.0.113.61",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-09"
+      ]
+    },
+    {
+      "ruleId": "xdr.exfiltration.d27ef13c1a73",
+      "action": "deny",
+      "destinationAddress": "198.51.100.46",
+      "expiresAt": "2026-10-14T01:45:31.612Z",
+      "evidenceAlertIds": [
+        "ex-10"
+      ]
+    }
+  ]
+}
