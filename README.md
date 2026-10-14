@@ -83,6 +83,12 @@
 
 `xdr/fixtures/web-injection.json`의 수업용 경보를 MITRE ATT&CK T1190 기반 패턴 4개(SQL 구문·스크립트 태그·경로 거슬러 올라가기·명령 구분자, `xdr/web-injection/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 같은 주소에서 5회 이상 반복된 주입 시도만 `block`입니다. `respond.mjs`가 `block` 주소만 `xdr/web-injection/deny-rules.json`에 만료 시각·근거 경보 번호와 함께 넣고 `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행기(`npm run xdr:run`)는 `connect.mjs`만 부르므로 규칙·알림 갱신은 `node xdr/web-injection/respond.mjs`로 합니다. 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 xdr-01과 같이 바꾸지 않았습니다.
 
+## 보너스 XDR xdr-03
+
+`xdr/fixtures/known-cve.json`의 수업용 경보를 CVE-2021-44228(NVD)·MITRE ATT&CK T1190 기반 패턴 3개(머리글 안의 원격 조회 구문·인자 안의 원격 조회 구문·점검 흔적과 조회 구문의 결합, `xdr/known-cve/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 요청 값에 완전한 `${jndi:<프로토콜>://…}` 구문이 있을 때만 `block`(확신도 0.85 이상), CVE 번호·`jndi` 낱말·잘린 조각처럼 관련 흔적만 있으면 `alert`, 나머지는 `record`입니다. `respond.mjs`가 `block` 주소만 `xdr/known-cve/deny-rules.json`에 15분 만료·근거 경보 번호와 함께 넣고(정상 이벤트가 나온 주소는 제외) `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 조회 구문은 문서용 표기이며 알림·규칙에 남기지 않습니다. `read-alerts.mjs`는 시각·주소·계정·수준·설명만 뽑는 확인용입니다.
+
+확인: `npm.cmd run xdr:run -- known-cve`(결과 `block 8 · alert 8 · record 8`), `node xdr/known-cve/respond.mjs`(거부 규칙 7개, kc-01~08 주소만 `deny`). 가상 경보 연습이며 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
+
 ## 11단계 접속 앱과 기기 승인
 
 - 서비스·경로: `POST /api/device/register`(이 기기를 승인 대기로 등록), `POST /api/device/verify`(패스키 서명 검증 뒤 승인된 기기에만 30분 기기 세션). 두 경로는 `allowedRoutes`에 더하지 않고 여기에만 적습니다.

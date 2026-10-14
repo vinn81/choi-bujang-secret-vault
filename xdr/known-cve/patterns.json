@@ -1,0 +1,29 @@
+{
+  "technique": {
+    "id": "T1190",
+    "name": "Exploit Public-Facing Application",
+    "source": "https://attack.mitre.org/techniques/T1190/"
+  },
+  "vulnerability": {
+    "id": "CVE-2021-44228",
+    "name": "Apache Log4j2 JNDI 원격 코드 실행(Log4Shell)",
+    "source": "https://nvd.nist.gov/vuln/detail/CVE-2021-44228"
+  },
+  "patterns": [
+    {
+      "name": "요청 머리글 안의 원격 조회 구문",
+      "condition": "data.useragent 같은 요청 머리글 값에 ${jndi: 로 시작하고 프로토콜(ldap·ldaps·rmi·dns 등)과 :// 원격 주소가 이어지는 완전한 조회 구문이 들어 있다.",
+      "evidence": "NVD CVE-2021-44228: Log4j2는 기록되는 메시지 안의 JNDI 조회를 막지 않아, 기록될 값(머리글 등)을 조작할 수 있는 공격자가 LDAP 서버에서 불러온 코드를 실행할 수 있다."
+    },
+    {
+      "name": "요청 인자 안의 원격 조회 구문",
+      "condition": "data.url 의 검색어·이동 주소 같은 인자 값에 ${jndi: 로 시작하고 프로토콜과 :// 원격 주소가 이어지는 완전한 조회 구문이 들어 있다.",
+      "evidence": "NVD CVE-2021-44228: 기록 메시지의 매개변수(요청 인자 등)를 조작할 수 있는 공격자는 메시지 조회 치환이 켜진 Log4j2에서 원격 코드를 실행할 수 있다."
+    },
+    {
+      "name": "알려진 취약점 점검 흔적과 원격 조회 구문의 결합",
+      "condition": "같은 data.srcip 의 요청에 취약점 점검 표식(probe 인자, 점검 도구 이름 등)이 있고, 같은 요청 안에 위 두 패턴의 완전한 조회 구문이 함께 있다. 점검 표식만 있고 조회 구문이 없으면 이 패턴에 해당하지 않는다.",
+      "evidence": "MITRE ATT&CK T1190: 공격자는 인터넷에 공개된 애플리케이션의 이미 알려진 약점을 찾아 악용하며, 점검 흔적에 악용 구문이 실린 요청은 탐색을 넘어선 악용 시도다."
+    }
+  ]
+}

@@ -262,3 +262,19 @@
 {"at":"2026-10-08T02:49:19.959Z","moduleKey":"web-injection","alertId":"wi-15","action":"alert","confidence":0.6,"reason":"T1190 경보이나 주입 형태 미확인","sourceAddress":"192.0.2.42"}
 {"at":"2026-10-08T02:49:19.959Z","moduleKey":"web-injection","alertId":"wi-16","action":"alert","confidence":0.7,"reason":"T1190 경보이나 주입 형태 미확인","sourceAddress":"198.51.100.42"}
 {"at":"2026-10-08T02:49:19.959Z","moduleKey":"web-injection","alertId":"wi-17","action":"alert","confidence":0.6,"reason":"T1190 경보이나 주입 형태 미확인","sourceAddress":"203.0.113.43"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-01","action":"block","confidence":0.92,"reason":"요청 머리글 안의 원격 조회 구문","sourceAddress":"203.0.113.10","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-02","action":"block","confidence":0.92,"reason":"요청 인자 안의 원격 조회 구문","sourceAddress":"203.0.113.10","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-03","action":"block","confidence":0.95,"reason":"요청 인자 안의 원격 조회 구문 · 6회","sourceAddress":"198.51.100.16","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-04","action":"block","confidence":0.95,"reason":"요청 머리글 안의 원격 조회 구문 · 4회","sourceAddress":"192.0.2.16","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-05","action":"block","confidence":0.92,"reason":"알려진 취약점 점검 흔적과 원격 조회 구문의 결합","sourceAddress":"203.0.113.24","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-06","action":"block","confidence":0.95,"reason":"요청 인자 안의 원격 조회 구문 · 8회","sourceAddress":"198.51.100.24","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-07","action":"block","confidence":0.92,"reason":"요청 머리글 안의 원격 조회 구문","sourceAddress":"192.0.2.24","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-08","action":"block","confidence":0.96,"reason":"요청 머리글 안의 원격 조회 구문 (머리글·인자 모두)","sourceAddress":"203.0.113.31","expiresAt":"2026-10-14T00:47:13.753Z"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-09","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"192.0.2.45"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-10","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"198.51.100.45"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-11","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"203.0.113.45"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-12","action":"alert","confidence":0.63,"reason":"요청 머리글 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"192.0.2.46"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-13","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"198.51.100.46"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-14","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"203.0.113.46"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-15","action":"alert","confidence":0.63,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"192.0.2.47"}
+{"at":"2026-10-14T00:32:13.753Z","moduleKey":"known-cve","alertId":"kc-16","action":"alert","confidence":0.68,"reason":"요청 인자 안의 원격 조회 구문 — 관련 흔적만 있고 완전한 조회 구문은 없음","sourceAddress":"198.51.100.47"}
