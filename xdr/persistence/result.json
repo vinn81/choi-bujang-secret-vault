@@ -16,9 +16,9 @@
     },
     {
       "alertId": "ps-03",
-      "action": "alert",
-      "confidence": 0.64,
-      "reason": "서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음"
+      "action": "block",
+      "confidence": 0.86,
+      "reason": "평소 목록에 없는 시작 폴더 프로그램"
     },
     {
       "alertId": "ps-04",
@@ -60,7 +60,7 @@
       "alertId": "ps-10",
       "action": "alert",
       "confidence": 0.6,
-      "reason": "서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음"
+      "reason": "평소 목록에 없는 시작 폴더 프로그램 — 신호가 약하거나 정상 사유가 함께 있음"
     },
     {
       "alertId": "ps-11",
@@ -84,7 +84,7 @@
       "alertId": "ps-14",
       "action": "alert",
       "confidence": 0.64,
-      "reason": "서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음"
+      "reason": "평소 목록에 없는 시작 폴더 프로그램 — 신호가 약하거나 정상 사유가 함께 있음"
     },
     {
       "alertId": "ps-15",
@@ -148,8 +148,8 @@
     }
   ],
   "counts": {
-    "block": 7,
-    "alert": 9,
+    "block": 8,
+    "alert": 8,
     "record": 8
   }
 }

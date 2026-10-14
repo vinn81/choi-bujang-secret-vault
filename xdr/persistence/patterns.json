@@ -9,6 +9,11 @@
       "id": "T1053",
       "name": "Scheduled Task/Job",
       "source": "https://attack.mitre.org/techniques/T1053/"
+    },
+    {
+      "id": "T1547.001",
+      "name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder",
+      "source": "https://attack.mitre.org/techniques/T1547/001/"
     }
   ],
   "patterns": [
@@ -21,6 +26,11 @@
       "name": "낯선 예약 작업",
       "condition": "평소 목록에 없는 예약 작업이 새로 생겼고, 그 작업이 임시 폴더의 실행 파일을 가리키거나 이름이 임의 문자열이거나 평소 시간(수업 시간) 밖에 실행된다.",
       "evidence": "MITRE ATT&CK T1053: 공격자는 예약 작업으로 악성 코드를 처음 또는 반복해서 실행하게 만들어 지속성을 얻는다."
+    },
+    {
+      "name": "평소 목록에 없는 시작 폴더 프로그램",
+      "condition": "사용자 시작 폴더(Start Menu\\Programs\\Startup)나 시작 항목에 평소 목록에 없는 실행 파일이 새로 추가됐다. 수업 도구 이름이거나 이어서 실행된 기록이 없으면 이 패턴만으로 단정하지 않는다.",
+      "evidence": "MITRE ATT&CK T1547.001: 공격자는 시작 폴더나 Run 레지스트리 키에 프로그램을 넣어 사용자가 로그인할 때마다 자동으로 실행되게 해 지속성을 얻는다."
     }
   ]
 }

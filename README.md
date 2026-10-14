@@ -91,9 +91,9 @@
 
 ## 보너스 XDR xdr-04
 
-`xdr/fixtures/persistence.json`의 수업용 서비스·예약 작업·파일 변경 경보를 MITRE ATT&CK T1543·T1053 기반 패턴 2개(서명 없는 새 서비스 등록, 낯선 예약 작업, `xdr/persistence/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 서비스·예약 작업 경보가 뚜렷한 신호(서명 없음·임시 폴더·평소 목록에 없음·재부팅 뒤 남음·임의 이름·수업 시간 밖·실행 파일 변경·반복) 둘 이상과 맞고 수업 중·`C:\lab`·서명 미확인 같은 사정이 없을 때만 `block`입니다. 신호가 약하면 `alert`, 서명된 기존 항목·평소 일정·읽기만 한 경우는 `record`입니다. `respond.mjs`가 `block` 주소만 `xdr/persistence/deny-rules.json`에 15분 만료·근거 경보 번호와 함께 넣고(계정이 아니라 출발 주소 기준, 정상 이벤트가 나온 주소 제외) `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행 파일 경로는 알림에 남기지 않습니다.
+`xdr/fixtures/persistence.json`의 수업용 서비스·예약 작업·파일 변경 경보를 MITRE ATT&CK T1543·T1053·T1547.001 기반 패턴 3개(서명 없는 새 서비스 등록, 낯선 예약 작업, 평소 목록에 없는 시작 폴더 프로그램, `xdr/persistence/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 서비스·예약 작업·시작 폴더 경보가 뚜렷한 신호(서명 없음·임시 폴더·평소 목록에 없음·재부팅 뒤 남음·임의 이름·수업 시간 밖·실행 파일 변경·반복·시작 폴더 위치) 둘 이상과 맞고 수업 중·`C:\lab`·서명 미확인 같은 사정이 없을 때만 `block`입니다. 신호가 약하면 `alert`, 서명된 기존 항목·평소 일정·읽기만 한 경우는 `record`입니다. `respond.mjs`가 `block` 주소만 `xdr/persistence/deny-rules.json`에 15분 만료·근거 경보 번호와 함께 넣고(계정이 아니라 출발 주소 기준, 정상 이벤트가 나온 주소 제외) `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 실행 파일 경로는 알림에 남기지 않습니다.
 
-확인: `npm.cmd run xdr:run -- persistence`(결과 `block 7 · alert 9 · record 8`, 정상 ps-17~24 모두 `record`), `node xdr/persistence/respond.mjs`(거부 규칙 6개). 시작 폴더만 바뀐 ps-03은 근거(T1543·T1053)에 맞는 패턴이 없어 `alert`로 남깁니다. 시작 폴더는 MITRE T1547.001에 해당하며 아직 패턴에 넣지 않았습니다. 가상 경보 연습이며 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
+확인: `npm.cmd run xdr:run -- persistence`(결과 `block 8 · alert 8 · record 8`, 정상 ps-17~24 모두 `record`), `node xdr/persistence/respond.mjs`(거부 규칙 7개, ps-01~08 주소만 `deny`). 시작 폴더만 바뀐 ps-03은 T1547.001 패턴으로 `block`이고, 수업 도구 시작 항목(ps-10)·실행 기록 없는 시작 폴더 변경(ps-14)은 `alert`입니다. 가상 경보 연습이며 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
 
 ## 11단계 접속 앱과 기기 승인
 

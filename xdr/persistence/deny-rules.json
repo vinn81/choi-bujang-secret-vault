@@ -1,23 +1,32 @@
 {
   "schema": "aleph.xdr.deny-rules.v1",
   "moduleKey": "persistence",
-  "generatedAt": "2026-10-14T01:03:47.126Z",
+  "generatedAt": "2026-10-14T01:10:36.926Z",
   "rules": [
     {
       "ruleId": "xdr.persistence.3753720a8fd8",
       "action": "deny",
       "sourceAddress": "203.0.113.12",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-01",
         "ps-02"
       ]
     },
     {
+      "ruleId": "xdr.persistence.c47d5ea8140c",
+      "action": "deny",
+      "sourceAddress": "198.51.100.12",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
+      "evidenceAlertIds": [
+        "ps-03"
+      ]
+    },
+    {
       "ruleId": "xdr.persistence.fbdc30690516",
       "action": "deny",
       "sourceAddress": "192.0.2.12",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-04"
       ]
@@ -26,7 +35,7 @@
       "ruleId": "xdr.persistence.acd6e36b3565",
       "action": "deny",
       "sourceAddress": "203.0.113.19",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-05"
       ]
@@ -35,7 +44,7 @@
       "ruleId": "xdr.persistence.cbbca7ad0475",
       "action": "deny",
       "sourceAddress": "198.51.100.19",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-06"
       ]
@@ -44,7 +53,7 @@
       "ruleId": "xdr.persistence.846be73635a9",
       "action": "deny",
       "sourceAddress": "192.0.2.19",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-07"
       ]
@@ -53,7 +62,7 @@
       "ruleId": "xdr.persistence.67c7e6e32ac1",
       "action": "deny",
       "sourceAddress": "203.0.113.33",
-      "expiresAt": "2026-10-14T01:18:47.126Z",
+      "expiresAt": "2026-10-14T01:25:36.926Z",
       "evidenceAlertIds": [
         "ps-08"
       ]

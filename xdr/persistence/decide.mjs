@@ -11,6 +11,11 @@ const PATTERNS = Object.freeze({
     condition: '평소 목록에 없는 예약 작업이 새로 생겼고, 그 작업이 임시 폴더의 실행 파일을 가리키거나 이름이 임의 문자열이거나 평소 시간(수업 시간) 밖에 실행된다.',
     evidence: 'MITRE ATT&CK T1053: 공격자는 예약 작업으로 악성 코드를 처음 또는 반복해서 실행하게 만들어 지속성을 얻는다.',
   },
+  startup: {
+    name: '평소 목록에 없는 시작 폴더 프로그램',
+    condition: '사용자 시작 폴더(Start Menu\\Programs\\Startup)나 시작 항목에 평소 목록에 없는 실행 파일이 새로 추가됐다. 수업 도구 이름이거나 이어서 실행된 기록이 없으면 이 패턴만으로 단정하지 않는다.',
+    evidence: 'MITRE ATT&CK T1547.001: 공격자는 시작 폴더나 Run 레지스트리 키에 프로그램을 넣어 사용자가 로그인할 때마다 자동으로 실행되게 해 지속성을 얻는다.',
+  },
 });
 
 const BLOCK_AT = 0.85;
@@ -19,6 +24,7 @@ const ALERT_AT = 0.5;
 // 어떤 패턴의 경보인지: 설명의 낱말을 우선하고, 없으면 MITRE 번호를 봅니다.
 const SERVICE_WORD = /서비스/u;
 const TASK_WORD = /예약\s*작업/u;
+const STARTUP_WORD = /시작\s*(?:폴더|항목|프로그램)/u;
 
 // 패턴 조건의 뚜렷한 신호입니다.
 const STRONG = {
@@ -33,6 +39,8 @@ const STRONG = {
   pairedAutostart: /시작\s*(?:프로그램|폴더)[^.]*(?:예약\s*작업|서비스)|(?:예약\s*작업|서비스)[^.]*시작\s*(?:프로그램|폴더)/u,
 };
 const TEMP_PATH = /\\AppData\\Local\\Temp\\|\\Temp\\/iu;
+// 로그인할 때 자동 실행되는 시작 폴더 위치(T1547.001)
+const STARTUP_PATH = /\\Start Menu\\Programs\\Startup\\/iu;
 
 // 신호를 누그러뜨리는 사정(애매한 시도)입니다.
 const SOFTENING = /수업\s*(?:중|시간입니다|도구|과제)|서명은\s*(?:아직\s*모|확인되지\s*않)|등록은\s*없|실행된\s*기록은\s*없|설명만|같은\s*파일로\s*다시|^C:\\lab\\/u;
@@ -65,16 +73,18 @@ export function decide(alert) {
 
   const kind = TASK_WORD.test(description) ? 'task'
     : SERVICE_WORD.test(description) ? 'service'
-      : null;
+      : STARTUP_WORD.test(description) || STARTUP_PATH.test(path) ? 'startup'
+        : null;
   const fallbackKind = kind ?? (mitre.includes('T1053') ? 'task' : 'service');
 
   const signals = Object.entries(STRONG).filter(([, pattern]) => pattern.test(description)).map(([name]) => name);
   if (!signals.includes('userWritable') && TEMP_PATH.test(path)) signals.push('userWritable');
   if (!signals.includes('repeated') && count >= 2) signals.push('repeated');
+  if (STARTUP_PATH.test(path)) signals.push('autostartLocation');
   const softened = SOFTENING.test(description) || LAB_PATH.test(path);
   const normal = NORMAL.test(description);
 
-  // 1) 서비스·예약 작업 경보가 뚜렷한 신호 둘 이상과 맞고 누그러뜨리는 사정이 없으면 차단 후보입니다.
+  // 1) 서비스·예약 작업·시작 폴더 경보가 뚜렷한 신호 둘 이상과 맞고 누그러뜨리는 사정이 없으면 차단 후보입니다.
   if (kind && signals.length >= 2 && !softened && !normal) {
     const confidence = 0.86 + 0.03 * (signals.length - 2) + (level >= 12 ? 0.02 : 0);
     return answer(Math.min(confidence, 0.98), PATTERNS[kind].name);

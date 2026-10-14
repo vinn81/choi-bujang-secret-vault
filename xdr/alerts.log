@@ -294,3 +294,19 @@
 {"at":"2026-10-14T01:03:47.126Z","moduleKey":"persistence","alertId":"ps-14","action":"alert","confidence":0.64,"reason":"서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"203.0.113.49"}
 {"at":"2026-10-14T01:03:47.126Z","moduleKey":"persistence","alertId":"ps-15","action":"alert","confidence":0.6,"reason":"낯선 예약 작업 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"192.0.2.53"}
 {"at":"2026-10-14T01:03:47.126Z","moduleKey":"persistence","alertId":"ps-16","action":"alert","confidence":0.6,"reason":"서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"198.51.100.53"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-01","action":"block","confidence":0.91,"reason":"서명 없는 새 서비스 등록","sourceAddress":"203.0.113.12","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-02","action":"block","confidence":0.91,"reason":"낯선 예약 작업","sourceAddress":"203.0.113.12","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-03","action":"block","confidence":0.86,"reason":"평소 목록에 없는 시작 폴더 프로그램","sourceAddress":"198.51.100.12","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-04","action":"block","confidence":0.91,"reason":"서명 없는 새 서비스 등록","sourceAddress":"192.0.2.12","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-05","action":"block","confidence":0.86,"reason":"낯선 예약 작업","sourceAddress":"203.0.113.19","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-06","action":"block","confidence":0.91,"reason":"서명 없는 새 서비스 등록","sourceAddress":"198.51.100.19","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-07","action":"block","confidence":0.86,"reason":"낯선 예약 작업","sourceAddress":"192.0.2.19","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-08","action":"block","confidence":0.91,"reason":"서명 없는 새 서비스 등록","sourceAddress":"203.0.113.33","expiresAt":"2026-10-14T01:25:36.926Z"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-09","action":"alert","confidence":0.6,"reason":"낯선 예약 작업 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"192.0.2.48"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-10","action":"alert","confidence":0.6,"reason":"평소 목록에 없는 시작 폴더 프로그램 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"198.51.100.48"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-11","action":"alert","confidence":0.6,"reason":"서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"203.0.113.48"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-12","action":"alert","confidence":0.6,"reason":"낯선 예약 작업 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"192.0.2.49"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-13","action":"alert","confidence":0.64,"reason":"서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"198.51.100.49"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-14","action":"alert","confidence":0.64,"reason":"평소 목록에 없는 시작 폴더 프로그램 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"203.0.113.49"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-15","action":"alert","confidence":0.6,"reason":"낯선 예약 작업 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"192.0.2.53"}
+{"at":"2026-10-14T01:10:36.926Z","moduleKey":"persistence","alertId":"ps-16","action":"alert","confidence":0.6,"reason":"서명 없는 새 서비스 등록 — 신호가 약하거나 정상 사유가 함께 있음","sourceAddress":"198.51.100.53"}
