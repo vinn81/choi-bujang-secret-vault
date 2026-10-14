@@ -95,6 +95,12 @@
 
 확인: `npm.cmd run xdr:run -- persistence`(결과 `block 8 · alert 8 · record 8`, 정상 ps-17~24 모두 `record`), `node xdr/persistence/respond.mjs`(거부 규칙 7개, ps-01~08 주소만 `deny`). 시작 폴더만 바뀐 ps-03은 T1547.001 패턴으로 `block`이고, 수업 도구 시작 항목(ps-10)·실행 기록 없는 시작 폴더 변경(ps-14)은 `alert`입니다. 가상 경보 연습이며 운영 엔진 연결과 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
 
+## 보너스 XDR xdr-05
+
+`xdr/fixtures/privilege.json`의 수업용 계정·그룹 변경과 관리자 권한 사용 경보(26건)를 MITRE ATT&CK T1078·T1068 기반 패턴 3개(평범한 계정의 관리자 그룹 추가, 처음 보는 관리자 명령 실행, 업무 시간 밖·처음 보는 주소의 권한 사용, `xdr/privilege/patterns.json`)와 비교합니다. `decide.mjs`는 import·파일 읽기·외부 호출 없이 판단만 하며, 뚜렷한 신호(관리자 그룹 추가·관리자 명령·방금 바뀐 관리자 세션·다른 계정 권한·업무 시간 밖·처음 보는 주소·여러 계정·재가입) 둘 이상이 맞고 수업 중·취소·평소 주소·한 번·실패 같은 사정이 없을 때만 `block`입니다. 신호가 약하면 `alert`, 로그인·읽기만·수업용 관리 계정의 평소 로그인은 `record`입니다. `respond.mjs`가 `block` 주소만 `xdr/privilege/deny-rules.json`에 15분 만료·근거 경보 번호·세션을 거둘 대상 계정과 함께 넣고(계정 전체가 아니라 출발 주소 단위, 정상 이벤트가 나온 주소 제외) `block`·`alert` 알림을 `xdr/alerts.log`에 쌓습니다. 그룹 이름과 설명 문장은 알림에 남기지 않습니다.
+
+확인: `npm.cmd run xdr:run -- privilege`(결과 `block 9 · alert 8 · record 9`, 정상 pv-18~26 모두 `record`), `node xdr/privilege/respond.mjs`(거부 규칙 8개, pv-01~09 주소만 `deny`). 판정기 계약에는 출발 IP와 Wazuh 계정 이름을 가명 `subjectId`로 잇는 값이 없어 실제 세션 회수는 미연결이며, 기존 `src/decider.mjs` 규칙은 바꾸지 않았습니다.
+
 ## 11단계 접속 앱과 기기 승인
 
 - 서비스·경로: `POST /api/device/register`(이 기기를 승인 대기로 등록), `POST /api/device/verify`(패스키 서명 검증 뒤 승인된 기기에만 30분 기기 세션). 두 경로는 `allowedRoutes`에 더하지 않고 여기에만 적습니다.

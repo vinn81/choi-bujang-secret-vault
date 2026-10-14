@@ -1,0 +1,104 @@
+{
+  "schema": "aleph.xdr.deny-rules.v1",
+  "moduleKey": "privilege",
+  "generatedAt": "2026-10-14T01:19:28.193Z",
+  "rules": [
+    {
+      "ruleId": "xdr.privilege.8bf100c6ad82",
+      "action": "deny",
+      "sourceAddress": "203.0.113.11",
+      "accounts": [
+        "user01"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-01",
+        "pv-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.04ff7a4b90ba",
+      "action": "deny",
+      "sourceAddress": "198.51.100.11",
+      "accounts": [
+        "user02"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.46e0e7ebf369",
+      "action": "deny",
+      "sourceAddress": "192.0.2.11",
+      "accounts": [
+        "user03"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.0d387c55a641",
+      "action": "deny",
+      "sourceAddress": "203.0.113.17",
+      "accounts": [
+        "user04"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.339063b59bd2",
+      "action": "deny",
+      "sourceAddress": "198.51.100.17",
+      "accounts": [
+        "user05"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.7b88fb27c8e9",
+      "action": "deny",
+      "sourceAddress": "192.0.2.17",
+      "accounts": [
+        "user06"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.7d38f65cadd5",
+      "action": "deny",
+      "sourceAddress": "203.0.113.27",
+      "accounts": [
+        "user07"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-08"
+      ]
+    },
+    {
+      "ruleId": "xdr.privilege.b2198515922a",
+      "action": "deny",
+      "sourceAddress": "198.51.100.27",
+      "accounts": [
+        "user08"
+      ],
+      "expiresAt": "2026-10-14T01:34:28.193Z",
+      "evidenceAlertIds": [
+        "pv-09"
+      ]
+    }
+  ]
+}
