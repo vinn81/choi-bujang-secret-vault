@@ -31,6 +31,7 @@
 - **구성**: 브라우저(`public/` 제공 화면 + `student/extension.mjs` 학생 화면) → 로컬 앱 서버(`src/server.mjs`, `127.0.0.1:5189`) → 접근 제어·XDR 시스템(SDP host, 설정이 있을 때만) / ALEPH 포털(계정 연결) / 수업용 AI 게이트웨이 / OSV. 구성도와 데이터 흐름은 `on-client/docs/STUDENT_RUNBOOK.md` 4절에 있습니다.
 - **지원 환경과 버전**: Windows PowerShell, Node.js 22~24(수업 기준 24.19.0, 학생 PC 실제 확인 v24.21.0), PC 브라우저(Chrome에서 확인). 시작 틀은 `on-client` 0.2.14이며 외부 npm 의존성이 없습니다. macOS·Linux 실행은 미확인입니다.
 - **실행 설명서(21단계)**: 설치·실행·종료·재실행, 오류별 확인 순서, 제공 코드와 학생 작성 부분, 미확인 기능은 `on-client/docs/STUDENT_RUNBOOK.md`에 정리했습니다.
+- **재현·릴리스 기록(22단계)**: 최종 커밋을 새 폴더에서 받아 실행한 결과, 검증 중 버전인 이유와 미해결 사항, 데이터 보존 계획은 `on-client/docs/RELEASE_RECORD.md`에 있습니다. 22단계 통과는 원문 검토 기준의 수료이며 실제 운영 인증이 아닙니다.
 
 13단계부터 ALEPH 시작 틀 `alekov-starter-0.2.11`(현재 0.2.14로 갱신)의 `on-client/`(로컬 보안 Agent, 기본 이름 케셰브)에 학생 화면을 이어서 구현합니다. 학생 코드는 `on-client/student/extension.mjs` 하나이며, 제공 화면 `public/app.js`·서버 `src/`는 바꾸지 않습니다. 모든 화면은 `createElement`·`textContent`로 만들고, 상태는 색상뿐 아니라 글자와 원래 값(예: `unknown`)으로 구분합니다.
 
@@ -44,7 +45,8 @@
 | 18 | `renderExplanation` | 사건 ID·AI 요약(참고용)·근거 "ID — 글"·규칙·확인 불가 상태·제안 미실행, 근거 불일치·`executed:true`는 쓸 수 없음 | `77cf7f5`, `702adbe` |
 | 19 | `renderAction` | 조치 준비·사람 확인·서버 전달·접수(ACK)·효과 관측 구분, `effectApplied===true`일 때만 효과 확인 | `753f5e3` |
 | 20 | `renderVulnerabilities` | 설치된 정확한 버전과 OSV 조회 결과, complete·partial·not_checked·not_configured·unverifiable 구분 | `9b134a1` |
-| 21 | 문서 | 실행 설명서와 구성도 `on-client/docs/STUDENT_RUNBOOK.md` | 이 커밋 |
+| 21 | 문서 | 실행 설명서와 구성도 `on-client/docs/STUDENT_RUNBOOK.md` | `0a25836` |
+| 22 | 문서 | 최종 커밋 새 폴더 재현 기록, 버전(검증 중 버전)·지원 범위, 설정 견본, 데이터 보존 계획 `on-client/docs/RELEASE_RECORD.md` | 재현 대상 `0a25836`, 기록은 다음 커밋 |
 
 - 다시 시도는 사용자가 위쪽 「다시 불러오기」를 직접 누를 때만 일어나며, 학생 코드는 자동 재요청을 하지 않습니다.
 - 도움정보는 제공 화면이 조회해 넘겨 준 값에서 `requestId`·`component`·`version`·`checkedAt`·`engine.mode`·`engine.code`만 표시·복사합니다. 학생 코드는 `/api/diagnostics`를 직접 호출하지 않습니다.

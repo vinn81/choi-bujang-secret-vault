@@ -8,16 +8,16 @@
 - **코드 확인**: 코드를 읽어 확인했지만 실행하지 않은 내용입니다.
 - **미확인**: 실행하지 않았거나 확인할 수 없었던 내용입니다. 성공으로 적지 않습니다.
 
-예제(demo)·연결 없음(disconnected)·권한 준비 중은 실제 연결 성공이 아닙니다. 이 문서의 확인 결과는 학생의 실행·관찰이며 ALEPH 판정이 아닙니다.
+예제(demo)·연결 없음(disconnected)·권한 준비 중은 실제 연결 성공이 아닙니다. 최종 커밋을 새 폴더에서 재현한 기록과 버전·데이터 보존 계획은 [RELEASE_RECORD.md](RELEASE_RECORD.md)(22단계)에 있습니다. 이 문서의 확인 결과는 학생의 실행·관찰이며 ALEPH 판정이 아닙니다.
 
 ## 1. 필요 프로그램과 확인한 버전
 
 | 프로그램 | 요구 버전(출처) | 이 프로젝트에서 확인한 값 |
 |---|---|---|
 | Node.js | 22~24 실행 가능, 수업 기준 24.19.0 (`package.json`의 `engines`, `tools/start-alekov.ps1`의 버전 검사) | 실제 확인: v24.21.0. 실행 도구가 "참고: 지금 Node.js 는 v24.21.0 입니다. 수업 기준은 v24.19.0 입니다."를 출력하고 계속 실행됨 |
-| Windows PowerShell | `tools/start-alekov.ps1`을 `powershell -NoProfile -ExecutionPolicy Bypass -File`로 실행 | 실제 확인: VS Code 터미널의 PowerShell에서 실행됨. PowerShell 버전 번호는 미확인 |
-| 브라우저 | PC 브라우저로 `http://127.0.0.1:5189/` | 실제 확인: Chrome에서 열림. 브라우저 버전 번호는 미확인 |
-| Git | 저장소 받기·커밋 | 사용함. 버전 번호는 미확인 |
+| Windows PowerShell | `tools/start-alekov.ps1`을 `powershell -NoProfile -ExecutionPolicy Bypass -File`로 실행 | 실제 확인: VS Code 터미널의 PowerShell 5.1.26100.9711에서 실행됨(22단계 재현 때 확인) |
+| 브라우저 | PC 브라우저로 `http://127.0.0.1:5189/` | 실제 확인: Chrome에서 열림. 브라우저 버전 번호는 미기록 |
+| Git | 저장소 받기·커밋 | 실제 확인: 2.55.0.windows.1(22단계 재현 때 확인) |
 | npm 의존성 | `on-client`는 외부 npm 의존성이 없음 (`on-client/README.md`, `package.json`에 `dependencies` 없음) | `on-client`에서는 `npm install`이 필요하지 않음. 저장소 최상위(1~12단계 자료실)의 의존성은 이 앱 실행과 별개 |
 
 지원하지 않는 환경: Node.js 21 이하·25 이상(실행 도구가 멈춤), 실행 도구는 Windows PowerShell 전용입니다. macOS·Linux에서의 실행은 미확인입니다.
