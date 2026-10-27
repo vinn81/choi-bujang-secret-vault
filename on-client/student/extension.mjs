@@ -759,6 +759,10 @@ const CONNECTION_CARD = {
   disconnected: { text: '연결 없음(disconnected)', tone: 'error' },
   unknown: { text: '확인 불가(unknown)', tone: 'empty' },
 };
+// 제공 style.css 에 대시보드용 규칙이 없으므로, 제공 색 변수만 써서 학생 요소에 배치를 직접 지정합니다.
+const styled = (node, styles) => { Object.assign(node.style, styles); return node; };
+const TONE_COLOR = { ok: 'var(--allow)', error: 'var(--deny)', loading: 'var(--muted)', empty: 'var(--unknown)' };
+const RELOAD_RESOURCES = new Set(['me', 'apps', 'events', 'devices', 'sessions']);
 const isSettled = (resource) => resource && (resource.status === 'ok' || resource.status === 'error');
 const pad2 = (n) => String(n).padStart(2, '0');
 const clockText = (date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
@@ -792,13 +796,18 @@ function alertSummary(notifications) {
 }
 
 // 「다시 불러오기」 한 번을 한 줄로 쌓습니다. 기기·세션이 불러오는 중이 되면 새 줄을 열고, 응답이 끝나는 동안 그 줄만 갱신합니다.
-// 브라우저 메모리에만 있으므로 새로고침하면 사라집니다.
+// 다시 불러오기는 자료를 하나씩 초기화하므로, 같은 주기에서는 늘기만 하는 알림 수가 줄면 초기화가 시작된 것으로 보고
+// 이전 줄을 굳힌 채 기기·세션이 다시 불러오는 중이 될 때까지 기록하지 않습니다. 브라우저 메모리에만 있어 새로고침하면 사라집니다.
 function createStatusHistory(limit = 10) {
   const entries = [];
   let startNew = true;
+  let resetting = false;
+  let lastAlerts = -1;
   return {
-    observe(summary, settled) {
-      if (!settled) { startNew = true; return null; }
+    observe(summary, settled, alertTotal) {
+      if (!settled) { startNew = true; resetting = false; lastAlerts = -1; return null; }
+      if (resetting || (!startNew && alertTotal < lastAlerts)) { resetting = true; return null; }
+      lastAlerts = alertTotal;
       if (startNew || entries.length === 0) {
         entries.unshift({ at: new Date(), ...summary });
         if (entries.length > limit) entries.pop();
@@ -819,12 +828,15 @@ function valueKind(settled, mode, at) {
 }
 
 function statusCard(title, summary, kind) {
-  const card = document.createElement('li');
+  const card = styled(document.createElement('li'), {
+    display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)',
+  });
   card.className = 'student-dashboard-card';
   card.append(
-    textNode('h4', title),
-    textNode('p', summary.text, `state state-${summary.tone}`),
-    textNode('p', kind.text, kind.className),
+    styled(textNode('h4', title), { margin: '0', fontSize: '0.8rem', color: 'var(--muted)' }),
+    styled(textNode('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', overflowWrap: 'anywhere' }),
+    styled(textNode('p', kind.text, kind.className), { margin: '0', alignSelf: 'flex-start', fontSize: '0.75rem' }),
   );
   return card;
 }
@@ -840,14 +852,19 @@ function statusDashboard({ devices, sessions, notifications, mode }, history) {
     // 기기·세션 응답이 끝나기 전의 빈 알림 목록은 "알림 없음"이 아니라 아직 값이 없는 상태입니다.
     alerts: settled ? alertSummary(notifications) : { text: '불러오는 중', tone: 'loading' },
   };
-  const entry = history.observe(summary, settled);
+  // 초기화 감지에는 「다시 불러오기」로 함께 초기화되는 다섯 자료의 알림만 셉니다(도움정보·판정·패키지 조회는 따로 바뀜).
+  const reloadAlerts = Array.isArray(notifications) ? notifications.filter((n) => n && RELOAD_RESOURCES.has(n.resource)).length : 0;
+  const entry = history.observe(summary, settled, reloadAlerts);
   const kind = valueKind(settled, mode, entry && entry.at);
 
   const section = document.createElement('section');
   section.className = 'student-dashboard';
   section.setAttribute('aria-label', '상태 요약');
   section.append(textNode('h3', '상태 요약'));
-  const cards = document.createElement('ul');
+  const cards = styled(document.createElement('ul'), {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
+    listStyle: 'none', padding: '0', margin: '8px 0',
+  });
   cards.className = 'student-dashboard-cards';
   cards.append(
     statusCard('연결', { text: connection.text, tone: connection.tone }, kind),
@@ -870,12 +887,14 @@ function historyTable(entries) {
     block.append(textNode('p', '아직 기록이 없습니다. 기기·세션 응답이 끝나면 첫 줄이 생깁니다.', 'muted'));
     return block;
   }
-  const table = document.createElement('table');
+  const cellStyle = { padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'left', verticalAlign: 'top', overflowWrap: 'anywhere' };
+  const table = styled(document.createElement('table'), { width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' });
   table.className = 'student-dashboard-history';
-  table.append(textNode('caption', `최근 ${entries.length}건 · 맨 위 줄이 현재 결과, 아래 줄은 과거 확인입니다`));
+  table.append(styled(textNode('caption', `최근 ${entries.length}건 · 맨 위 줄이 현재 결과, 아래 줄은 과거 확인입니다`),
+    { textAlign: 'left', padding: '4px 0', color: 'var(--muted)' }));
   const head = document.createElement('tr');
   for (const name of ['확인 시각(이 PC)', '구분', '연결', '기기', '세션', '알림', '값 종류']) {
-    const th = textNode('th', name);
+    const th = styled(textNode('th', name), { ...cellStyle, background: 'var(--unknown-soft)', whiteSpace: 'nowrap' });
     th.scope = 'col';
     head.append(th);
   }
@@ -883,14 +902,24 @@ function historyTable(entries) {
   thead.append(head);
   const tbody = document.createElement('tbody');
   entries.forEach((entry, index) => {
-    const row = document.createElement('tr');
-    const cells = [clockText(entry.at), index === 0 ? '현재' : '과거 확인', entry.connection, entry.devices.text, entry.sessions.text, entry.alerts.text,
-      entry.mode === 'demo' ? '예제 자료(demo)' : '실측'];
-    for (const cell of cells) row.append(textNode('td', cell));
+    const current = index === 0;
+    const row = styled(document.createElement('tr'), current ? { background: 'var(--accent-soft)', fontWeight: '600' } : { color: 'var(--muted)' });
+    const cells = [
+      [clockText(entry.at), null], [current ? '현재' : '과거 확인', null], [entry.connection, null],
+      [entry.devices.text, entry.devices.tone], [entry.sessions.text, entry.sessions.tone], [entry.alerts.text, entry.alerts.tone],
+      [entry.mode === 'demo' ? '예제 자료(demo)' : '실측', null],
+    ];
+    for (const [text, tone] of cells) {
+      const td = styled(textNode('td', text), cellStyle);
+      if (current && tone) td.style.color = TONE_COLOR[tone];
+      row.append(td);
+    }
     tbody.append(row);
   });
   table.append(thead, tbody);
-  block.append(table, textNode('p', '「다시 불러오기」를 누를 때마다 한 줄씩 쌓입니다(최대 10줄). 브라우저 메모리에만 있으므로 새로고침하면 사라지며, 파일이나 서버에 저장하지 않습니다.', 'muted'));
+  const scroller = styled(document.createElement('div'), { overflowX: 'auto' });
+  scroller.append(table);
+  block.append(scroller, textNode('p', '「다시 불러오기」를 누를 때마다 한 줄씩 쌓입니다(최대 10줄). 브라우저 메모리에만 있으므로 새로고침하면 사라지며, 파일이나 서버에 저장하지 않습니다.', 'muted'));
   return block;
 }
 
