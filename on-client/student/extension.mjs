@@ -1039,6 +1039,34 @@ function eventCards({ status, mode, data, error }, seenAt) {
   return section;
 }
 
+// 총공세 2일차: 「내 PC 상태」 자리입니다. 시작 틀 0.2.14에는 CPU·메모리·디스크를 읽는 제공 기능이 없고,
+// 브라우저의 코어 수·저장소 할당량은 사용률·남은 공간이 아니므로 대신 쓰지 않습니다. 제공 기능을 받으면 실제 값으로 바꿉니다.
+const PC_STATUS_REASON = '이 시작 틀(0.2.14)에 \'내 PC 상태\' 제공 기능이 없어 읽지 않음';
+const PC_STATUS_ITEMS = [
+  ['CPU 사용률', '%(퍼센트)'],
+  ['메모리 사용량', 'GB(사용량 / 전체)'],
+  ['디스크 남은 공간', 'GB'],
+];
+
+function pcStatusSection() {
+  const section = document.createElement('section');
+  section.className = 'student-dashboard';
+  section.setAttribute('aria-label', '내 PC 상태');
+  section.append(textNode('h3', '내 PC 상태'));
+  const cards = styled(document.createElement('ul'), {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
+    listStyle: 'none', padding: '0', margin: '8px 0',
+  });
+  cards.className = 'student-dashboard-cards';
+  for (const [title, unit] of PC_STATUS_ITEMS) {
+    const card = statusCard(title, { text: '확인 불가', tone: 'empty' }, { text: `이유: ${PC_STATUS_REASON}`, className: 'muted' });
+    card.append(styled(textNode('p', `단위: ${unit} · 잰 시각: 없음(측정하지 않음)`, 'muted'), { margin: '0', fontSize: '0.75rem' }));
+    cards.append(card);
+  }
+  section.append(cards, textNode('p', '"확인 불가"는 0이나 정상이 아닙니다. 예시 값이나 다른 값(브라우저의 코어 수·저장소 할당량 등)으로 대신 채우지 않습니다.', 'muted'));
+  return section;
+}
+
 export function createStudentView() {
   const statusHistory = createStatusHistory();
   // 보안 기록을 받은 시각입니다. 불러오는 중이 되면 지우고, 새 결과를 처음 그릴 때 한 번만 정합니다.
@@ -1119,6 +1147,7 @@ export function createStudentView() {
       }
       root.append(
         statusDashboard({ devices, sessions, notifications, mode }, statusHistory),
+        pcStatusSection(),
         notificationList(notifications),
         statusResource('기기', '기기 목록', devices, '등록된 기기가 없음: 조회는 성공했고 내 이름으로 등록된 기기가 0개입니다.', deviceRow),
         statusResource('세션', '현재 세션', sessions, '현재 연결 없음: 조회는 성공했고 지금 검증된 연결이 없습니다.', sessionRow),
