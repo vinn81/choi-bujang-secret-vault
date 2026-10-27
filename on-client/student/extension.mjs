@@ -452,10 +452,10 @@ function aiErrorLines(error, what) {
 // 18단계 renderExplanation: 설명에서만 오는 실패 원인입니다. 그 밖의 code 는 17단계 원인표로 안내합니다.
 const EXPLAIN_ERROR = {
   ON_AI_INVALID_INPUT: { cause: '근거 부족(사건 근거·규칙 확인 불가)', guide: '이 기록의 근거나 규칙을 AI 설명에 쓸 수 있는 형식으로 확인하지 못해 설명을 만들 수 없습니다. 근거를 지어내 채우지 않습니다.' },
-  ON_AI_INVALID_OUTPUT: { cause: 'AI 응답의 근거·조치·형식 불일치', guide: 'AI가 답한 근거 ID·조치·형식이 이 기록과 맞지 않아 설명을 쓰지 않았습니다. 필요하면 「AI 설명」 버튼을 직접 다시 누르세요.' },
+  ON_AI_INVALID_OUTPUT: { cause: 'AI 응답의 근거·조치·형식 불일치', guide: 'AI가 답한 근거 ID·조치·형식이 이 기록과 맞지 않아 설명을 쓰지 않았습니다. 필요하면 「AI 설명 요청」 버튼을 직접 다시 누르세요.' },
 };
 // 17단계 원인표의 안내는 연결 점검 기준이므로, 설명 요청에 맞지 않는 원인만 설명용 안내로 바꿉니다.
-const EXPLAIN_RETRY = '필요하면 「AI 설명」 버튼을 직접 다시 누르세요. 자동으로 다시 요청하지 않습니다.';
+const EXPLAIN_RETRY = '필요하면 「AI 설명 요청」 버튼을 직접 다시 누르세요. 자동으로 다시 요청하지 않습니다.';
 const EXPLAIN_GUIDE_BY_CAUSE = {
   '반 사용량 소진': '담당자에게 확인하세요. 다시 요청해도 바로 풀리지 않습니다.',
   '이용 한도 도달': '담당자에게 확인하세요. 다시 요청해도 바로 풀리지 않습니다.',
