@@ -983,8 +983,66 @@ function vulnerabilityCards({ status, mode, data, error }) {
   return section;
 }
 
+// 총공세 3순위 B: 보안 기록 요약 카드 네 개(전체 기록 수·XDR 경보 수·접속 거부 수·가장 최근 기록 시각)입니다.
+// 조회 실패·연결 없음은 "조회 실패"로 두고 0건으로 바꾸지 않습니다. 0건은 조회가 성공했을 때만 씁니다.
+function eventCards({ status, mode, data, error }, seenAt) {
+  const ok = status === 'ok' && Array.isArray(data);
+  const failed = { text: '조회 실패', tone: 'error' };
+  const pending = status === 'loading' ? { text: '불러오는 중', tone: 'loading' } : { text: '확인 불가', tone: 'empty' };
+  const count = (rows, unit) => ({ text: rows.length === 0 ? `0${unit} (조회 성공)` : `${rows.length}${unit}`, tone: rows.length === 0 ? 'ok' : 'error' });
+  let total;
+  let xdr;
+  let denied;
+  let latest;
+  if (ok) {
+    const rows = data.filter((row) => row && typeof row === 'object');
+    total = { text: rows.length === 0 ? '0건 (조회 성공, 기록 없음)' : `${rows.length}건`, tone: 'empty' };
+    xdr = count(rows.filter((row) => row.kind === 'xdr'), '건');
+    denied = count(rows.filter((row) => row.state && row.state.access === 'denied'), '건');
+    const newest = rows.reduce((best, row) => (timeOf(row) > timeOf(best || {}) ? row : best), null);
+    const at = newest ? dateTimeText(newest.at) : null;
+    latest = at ? { text: `${at} (${valueOr(newest.id)})`, tone: 'empty' } : { text: rows.length === 0 ? '없음 (기록 0건)' : '확인 불가', tone: 'empty' };
+  } else if (status === 'error') {
+    total = { text: `조회 실패 (${safeCode(error && error.code)})`, tone: 'error' };
+    xdr = failed;
+    denied = failed;
+    latest = failed;
+  } else {
+    total = pending;
+    xdr = pending;
+    denied = pending;
+    latest = pending;
+  }
+  let kind;
+  if ((ok || status === 'error') && seenAt) {
+    kind = mode === 'demo' && ok
+      ? { text: '예제 자료(demo) · 실제 값 아님', className: 'tag tag-demo' }
+      : { text: `실측 · 이 PC · ${clockText(seenAt)}${ok ? '' : ' · 조회 실패'}`, className: 'tag' };
+  } else kind = { text: '아직 값 없음', className: 'muted' };
+
+  const section = document.createElement('section');
+  section.className = 'student-dashboard';
+  section.setAttribute('aria-label', '보안 기록 요약');
+  section.append(textNode('h4', '기록 요약'));
+  const cards = styled(document.createElement('ul'), {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
+    listStyle: 'none', padding: '0', margin: '8px 0',
+  });
+  cards.className = 'student-dashboard-cards';
+  cards.append(
+    statusCard('전체 기록 수', total, kind),
+    statusCard('XDR 경보 수', xdr, kind),
+    statusCard('접속 거부 수', denied, kind),
+    statusCard('가장 최근 기록 시각', latest, kind),
+  );
+  section.append(cards, textNode('p', '건수는 받은 본인 최근 기록(최대 40건) 기준입니다. "조회 실패"는 0건이 아니며, 아래 기록 목록에서 각 기록의 근거와 상태를 확인하세요.', 'muted'));
+  return section;
+}
+
 export function createStudentView() {
   const statusHistory = createStatusHistory();
+  // 보안 기록을 받은 시각입니다. 불러오는 중이 되면 지우고, 새 결과를 처음 그릴 때 한 번만 정합니다.
+  let eventsSeenAt = null;
   return {
     // 입력이 바뀔 때마다 새 DOM 요소 하나를 돌려줍니다. 이전 호출의 사용자·기기·세션 값은 저장하지 않으므로
     // 다시 불러오기나 오류가 오면 제공 UI가 학생 칸을 이 새 요소로 통째로 교체합니다.
@@ -1032,6 +1090,9 @@ export function createStudentView() {
       if (Object.hasOwn(MODE_NOTICE, mode)) {
         root.append(textNode('p', MODE_NOTICE[mode], mode === 'demo' ? 'tag tag-demo' : 'tag'));
       }
+      if (status === 'ok' || status === 'error') eventsSeenAt = eventsSeenAt || new Date();
+      else eventsSeenAt = null;
+      root.append(eventCards({ status, mode, data, error }, eventsSeenAt));
       if (status === 'loading') {
         root.append(textNode('p', '기록을 불러오는 중… 아직 받은 기록이 없습니다.', 'state state-loading'));
       } else if (status === 'error') {
