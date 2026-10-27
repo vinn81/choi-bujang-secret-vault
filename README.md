@@ -23,11 +23,16 @@
 - 자기 점검(`src/attack-check.mjs`)은 묶음 실행 중 네트워크 요청을 보내지 않고 20건 모두 `not_run`으로 적습니다. 비로그인 거부·메모 0건 같은 실측은 배포 서버의 요청 기록과 작전실 실측 재확인 표에서 확인합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
-- 보안 Agent 「헤임달」(`on-client/`): 13~16단계 학생 화면(로그인·기기·세션, 업무 앱 판정, 기록 목록·상세, 알림·빈 상태·오류·도움정보)을 `on-client/student/extension.mjs`에 구현했습니다. 아래 「보안 Agent 「헤임달」」 절을 봅니다.
+- 보안 Agent 「헤임달」(`on-client/`): 13~20단계 학생 화면(로그인·기기·세션, 업무 앱 판정, 기록 목록·상세, 알림·빈 상태·오류·도움정보, AI 연결 점검, AI 사건 설명, 보안 조치 상태, 설치 패키지·OSV 조회)을 `on-client/student/extension.mjs`에 구현했습니다. 실행 설명서와 구성도는 `on-client/docs/STUDENT_RUNBOOK.md`(21단계)입니다. 아래 「보안 Agent 「헤임달」」 절을 봅니다.
 
-## 보안 Agent 「헤임달」 (13~16단계, `on-client/`)
+## 보안 Agent 「헤임달」 (13~21단계, `on-client/`)
 
-13단계부터 ALEPH 시작 틀 `alekov-starter-0.2.11`의 `on-client/`(로컬 보안 Agent, 기본 이름 케셰브)에 학생 화면을 이어서 구현합니다. 학생 코드는 `on-client/student/extension.mjs` 하나이며, 제공 화면 `public/app.js`·서버 `src/`는 바꾸지 않습니다. 모든 화면은 `createElement`·`textContent`로 만들고, 상태는 색상뿐 아니라 글자와 원래 값(예: `unknown`)으로 구분합니다.
+- **목적**: 회사 직원이 자기 로그인·기기·세션 상태, 업무 앱 접근 판정, 접속 기록·XDR 경보, AI 사건 설명, 보안 조치 진행 상태, 설치 패키지의 알려진 취약점을 한 화면에서 확인하는 로컬 보안 앱입니다. 성공·실패·확인 불가·예제를 글자로 구분하는 것이 목표입니다.
+- **구성**: 브라우저(`public/` 제공 화면 + `student/extension.mjs` 학생 화면) → 로컬 앱 서버(`src/server.mjs`, `127.0.0.1:5189`) → 접근 제어·XDR 시스템(SDP host, 설정이 있을 때만) / ALEPH 포털(계정 연결) / 수업용 AI 게이트웨이 / OSV. 구성도와 데이터 흐름은 `on-client/docs/STUDENT_RUNBOOK.md` 4절에 있습니다.
+- **지원 환경과 버전**: Windows PowerShell, Node.js 22~24(수업 기준 24.19.0, 학생 PC 실제 확인 v24.21.0), PC 브라우저(Chrome에서 확인). 시작 틀은 `on-client` 0.2.14이며 외부 npm 의존성이 없습니다. macOS·Linux 실행은 미확인입니다.
+- **실행 설명서(21단계)**: 설치·실행·종료·재실행, 오류별 확인 순서, 제공 코드와 학생 작성 부분, 미확인 기능은 `on-client/docs/STUDENT_RUNBOOK.md`에 정리했습니다.
+
+13단계부터 ALEPH 시작 틀 `alekov-starter-0.2.11`(현재 0.2.14로 갱신)의 `on-client/`(로컬 보안 Agent, 기본 이름 케셰브)에 학생 화면을 이어서 구현합니다. 학생 코드는 `on-client/student/extension.mjs` 하나이며, 제공 화면 `public/app.js`·서버 `src/`는 바꾸지 않습니다. 모든 화면은 `createElement`·`textContent`로 만들고, 상태는 색상뿐 아니라 글자와 원래 값(예: `unknown`)으로 구분합니다.
 
 | 단계 | 함수 | 하는 일 | 커밋 |
 |---|---|---|---|
@@ -35,6 +40,11 @@
 | 14 | `renderDecision` | 업무 앱 접근 판정 allow·deny·challenge·unknown 구분, 요청 실패는 거부(deny)가 아님을 안내 | `2667109` |
 | 15 | `renderEvents` | 접속 기록·XDR 경보 최신순 목록, 「기록 종류」·「업무 앱」·「접속 상태」 필터, 「<사건 ID> 상세」(근거·규칙·세 상태) | `a1a25cb` |
 | 16 | `renderStatus`, 15단계 상세 | 기기·세션·도움정보의 불러오는 중·빈 목록·실패·시간 초과 구분, 알림별 자료·코드·내용, 「도움정보 복사」(여섯 항목만), 「<action> 미지원」 비활성 버튼 | `738cf16` |
+| 17 | `renderAiConnection`, `renderExplanation` 기초 | AI 연결 점검 idle·loading·ok(test/verified)·error 구분, 오류 code별 원인, 연결 점검과 사건 설명 구분 | `78bf089` |
+| 18 | `renderExplanation` | 사건 ID·AI 요약(참고용)·근거 "ID — 글"·규칙·확인 불가 상태·제안 미실행, 근거 불일치·`executed:true`는 쓸 수 없음 | `77cf7f5`, `702adbe` |
+| 19 | `renderAction` | 조치 준비·사람 확인·서버 전달·접수(ACK)·효과 관측 구분, `effectApplied===true`일 때만 효과 확인 | `753f5e3` |
+| 20 | `renderVulnerabilities` | 설치된 정확한 버전과 OSV 조회 결과, complete·partial·not_checked·not_configured·unverifiable 구분 | `9b134a1` |
+| 21 | 문서 | 실행 설명서와 구성도 `on-client/docs/STUDENT_RUNBOOK.md` | 이 커밋 |
 
 - 다시 시도는 사용자가 위쪽 「다시 불러오기」를 직접 누를 때만 일어나며, 학생 코드는 자동 재요청을 하지 않습니다.
 - 도움정보는 제공 화면이 조회해 넘겨 준 값에서 `requestId`·`component`·`version`·`checkedAt`·`engine.mode`·`engine.code`만 표시·복사합니다. 학생 코드는 `/api/diagnostics`를 직접 호출하지 않습니다.
