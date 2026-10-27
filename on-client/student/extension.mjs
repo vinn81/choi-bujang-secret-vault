@@ -750,7 +750,152 @@ function packageList(data) {
   return block;
 }
 
+// 총공세 1순위 A: 관제 대시보드형 상태 카드 네 개(연결·기기·세션·알림)와 이번 실행의 추이입니다.
+// 카드는 제공 화면이 넘긴 현재 값만 씁니다. 실측(이 PC)·예제 자료(demo)·아직 값 없음을 글자로 구분하고,
+// 연결 없음·조회 실패·확인 불가를 0건이나 정상으로 바꾸지 않습니다.
+const CONNECTION_CARD = {
+  connected: { text: '연결됨(connected)', tone: 'ok' },
+  demo: { text: '예제 자료(demo) · 실제 연결 아님', tone: 'empty' },
+  disconnected: { text: '연결 없음(disconnected)', tone: 'error' },
+  unknown: { text: '확인 불가(unknown)', tone: 'empty' },
+};
+const isSettled = (resource) => resource && (resource.status === 'ok' || resource.status === 'error');
+const pad2 = (n) => String(n).padStart(2, '0');
+const clockText = (date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+
+function listSummary(resource, table, unit) {
+  const current = resource && typeof resource === 'object' ? resource : { status: null };
+  if (current.status === 'loading') return { text: '불러오는 중', tone: 'loading' };
+  if (current.status === 'error') return { text: `조회 실패 (${safeCode(current.error && current.error.code)})`, tone: 'error' };
+  if (current.status !== 'ok' || !Array.isArray(current.data)) return { text: '확인 불가', tone: 'empty' };
+  if (current.data.length === 0) return { text: `0${unit} (조회 성공, 등록 없음)`, tone: 'empty' };
+  const counts = new Map();
+  for (const row of current.data) {
+    const key = Object.hasOwn(table, row && row.status) ? row.status : 'unknown';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const parts = [...counts].map(([key, n]) => `${Object.hasOwn(table, key) ? table[key].label : '확인 불가'} ${n}`);
+  const allOk = counts.size === 1 && table[[...counts.keys()][0]].tone === 'ok';
+  return { text: `${current.data.length}${unit} · ${parts.join(' · ')}`, tone: allOk ? 'ok' : 'empty' };
+}
+
+function alertSummary(notifications) {
+  if (!Array.isArray(notifications)) return { text: '확인 불가', tone: 'empty' };
+  let failed = 0;
+  let attention = 0;
+  for (const item of notifications) {
+    if (ATTENTION_CODES.has(safeCode(item && item.code))) attention += 1;
+    else failed += 1;
+  }
+  if (failed === 0 && attention === 0) return { text: '주의할 알림 없음', tone: 'ok' };
+  return { text: `조회 실패 ${failed}건 · 주의 ${attention}건`, tone: failed > 0 ? 'error' : 'empty' };
+}
+
+// 「다시 불러오기」 한 번을 한 줄로 쌓습니다. 기기·세션이 불러오는 중이 되면 새 줄을 열고, 응답이 끝나는 동안 그 줄만 갱신합니다.
+// 브라우저 메모리에만 있으므로 새로고침하면 사라집니다.
+function createStatusHistory(limit = 10) {
+  const entries = [];
+  let startNew = true;
+  return {
+    observe(summary, settled) {
+      if (!settled) { startNew = true; return null; }
+      if (startNew || entries.length === 0) {
+        entries.unshift({ at: new Date(), ...summary });
+        if (entries.length > limit) entries.pop();
+        startNew = false;
+      } else {
+        Object.assign(entries[0], summary);
+      }
+      return entries[0];
+    },
+    list: () => entries,
+  };
+}
+
+function valueKind(settled, mode, at) {
+  if (!settled || !at) return { text: '아직 값 없음', className: 'muted' };
+  if (mode === 'demo') return { text: '예제 자료(demo) · 실제 값 아님', className: 'tag tag-demo' };
+  return { text: `실측 · 이 PC · ${clockText(at)}`, className: 'tag' };
+}
+
+function statusCard(title, summary, kind) {
+  const card = document.createElement('li');
+  card.className = 'student-dashboard-card';
+  card.append(
+    textNode('h4', title),
+    textNode('p', summary.text, `state state-${summary.tone}`),
+    textNode('p', kind.text, kind.className),
+  );
+  return card;
+}
+
+function statusDashboard({ devices, sessions, notifications, mode }, history) {
+  const settled = isSettled(devices) && isSettled(sessions);
+  const connection = Object.hasOwn(CONNECTION_CARD, mode) ? CONNECTION_CARD[mode] : CONNECTION_CARD.unknown;
+  const summary = {
+    mode: valueOr(mode),
+    connection: connection.text,
+    devices: listSummary(devices, DEVICE_STATUS, '대'),
+    sessions: listSummary(sessions, SESSION_STATUS, '개'),
+    // 기기·세션 응답이 끝나기 전의 빈 알림 목록은 "알림 없음"이 아니라 아직 값이 없는 상태입니다.
+    alerts: settled ? alertSummary(notifications) : { text: '불러오는 중', tone: 'loading' },
+  };
+  const entry = history.observe(summary, settled);
+  const kind = valueKind(settled, mode, entry && entry.at);
+
+  const section = document.createElement('section');
+  section.className = 'student-dashboard';
+  section.setAttribute('aria-label', '상태 요약');
+  section.append(textNode('h3', '상태 요약'));
+  const cards = document.createElement('ul');
+  cards.className = 'student-dashboard-cards';
+  cards.append(
+    statusCard('연결', { text: connection.text, tone: connection.tone }, kind),
+    statusCard('기기', summary.devices, kind),
+    statusCard('세션', summary.sessions, kind),
+    statusCard('알림', summary.alerts, kind),
+  );
+  section.append(
+    cards,
+    textNode('p', '실측은 이 PC의 앱이 방금 받은 결과이며, 조회 실패도 실측 결과입니다. 예제 자료(demo)는 실제 값이 아닙니다. 연결 없음·조회 실패·확인 불가는 0건이나 정상이 아닙니다.', 'muted'),
+    historyTable(history.list()),
+  );
+  return section;
+}
+
+function historyTable(entries) {
+  const block = document.createElement('div');
+  block.append(textNode('h4', '추이: 이번 실행의 확인 기록'));
+  if (entries.length === 0) {
+    block.append(textNode('p', '아직 기록이 없습니다. 기기·세션 응답이 끝나면 첫 줄이 생깁니다.', 'muted'));
+    return block;
+  }
+  const table = document.createElement('table');
+  table.className = 'student-dashboard-history';
+  table.append(textNode('caption', `최근 ${entries.length}건 · 맨 위 줄이 현재 결과, 아래 줄은 과거 확인입니다`));
+  const head = document.createElement('tr');
+  for (const name of ['확인 시각(이 PC)', '구분', '연결', '기기', '세션', '알림', '값 종류']) {
+    const th = textNode('th', name);
+    th.scope = 'col';
+    head.append(th);
+  }
+  const thead = document.createElement('thead');
+  thead.append(head);
+  const tbody = document.createElement('tbody');
+  entries.forEach((entry, index) => {
+    const row = document.createElement('tr');
+    const cells = [clockText(entry.at), index === 0 ? '현재' : '과거 확인', entry.connection, entry.devices.text, entry.sessions.text, entry.alerts.text,
+      entry.mode === 'demo' ? '예제 자료(demo)' : '실측'];
+    for (const cell of cells) row.append(textNode('td', cell));
+    tbody.append(row);
+  });
+  table.append(thead, tbody);
+  block.append(table, textNode('p', '「다시 불러오기」를 누를 때마다 한 줄씩 쌓입니다(최대 10줄). 브라우저 메모리에만 있으므로 새로고침하면 사라지며, 파일이나 서버에 저장하지 않습니다.', 'muted'));
+  return block;
+}
+
 export function createStudentView() {
+  const statusHistory = createStatusHistory();
   return {
     // 입력이 바뀔 때마다 새 DOM 요소 하나를 돌려줍니다. 이전 호출의 사용자·기기·세션 값은 저장하지 않으므로
     // 다시 불러오기나 오류가 오면 제공 UI가 학생 칸을 이 새 요소로 통째로 교체합니다.
@@ -815,6 +960,7 @@ export function createStudentView() {
       return root;
     },
     // 호출될 때마다 현재 입력으로 새 요소를 만듭니다. 다시 불러와 성공하면 이전 실패 안내는 남지 않습니다.
+    // 맨 위 상태 카드는 현재 값만, 추이 표는 이번 실행의 과거 확인을 "과거 확인"으로 구분해 보여 줍니다.
     renderStatus({ devices, sessions, notifications, diagnostics, mode } = {}) {
       const root = document.createElement('div');
       root.className = 'student-status';
@@ -822,6 +968,7 @@ export function createStudentView() {
         root.append(textNode('p', MODE_NOTICE[mode], mode === 'demo' ? 'tag tag-demo' : 'tag'));
       }
       root.append(
+        statusDashboard({ devices, sessions, notifications, mode }, statusHistory),
         notificationList(notifications),
         statusResource('기기', '기기 목록', devices, '등록된 기기가 없음: 조회는 성공했고 내 이름으로 등록된 기기가 0개입니다.', deviceRow),
         statusResource('세션', '현재 세션', sessions, '현재 연결 없음: 조회는 성공했고 지금 검증된 연결이 없습니다.', sessionRow),
