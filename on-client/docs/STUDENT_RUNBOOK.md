@@ -183,6 +183,7 @@ flowchart LR
 | 18 | `renderExplanation` | 사건 ID·AI 요약(참고용)·근거 "ID — 글"·규칙·확인 불가 상태·제안 미실행, 근거 불일치·`executed:true`는 쓸 수 없음 | 실제 확인: 예제 모드 「AI 설명 요청」 → `ON_AI_PROVISIONING_PENDING` 실패·"기록은 그대로입니다", 「다시 불러오기」 뒤 "기록을 먼저 고르세요". 성공 설명은 모의 점검만 |
 | 19 | `renderAction` | idle·loading·prepared·executing·pending·succeeded·denied·failed·unknown·expired·error 구분, `effectApplied===true`일 때만 효과 확인 | 실제 확인: 예제 모드에서 "아직 미실행(idle)"과 조치 준비 버튼이 없는 것이 정상이라는 안내, 「다시 불러오기」 뒤에도 idle. 나머지 상태는 모의 점검만 |
 | 20 | `renderVulnerabilities` | idle·loading·error·ok, complete·partial·not_checked·not_configured·unverifiable, 패키지별 정확한 버전·OSV 결과 | 실제 확인: 기본 실행 「설치 패키지 조회」 → not_configured(`PROJECT_NOT_CONFIGURED`), 다시 조회 시 새 요청 2건(200)과 조회 시각 교체. 패키지 행·취약점 표시는 모의 점검만 |
+| 총공세 2순위 | `renderVulnerabilities` 상단 조회 요약 | 전체 조회 상태·조회한 패키지 수·알려진 취약점 수·조회 시각 카드, 미조회는 "조회 안 됨" | 작업 환경 브라우저 확인: 조회 전 → not_configured. complete·partial은 모의 점검만. 학생 PC 화면 미확인 |
 | 총공세 1일차 | `renderStatus` 상단 상태 요약 | 관제 대시보드형 상태 카드 네 개(연결·기기·세션·알림)와 이번 실행 추이 표. 값 종류(실측·예제 자료·아직 값 없음)를 글자로 표시 | 실제 확인(2026-10-27 16:02:50): 기본 실행에서 카드 네 개가 가로 한 줄, 연결 없음·조회 실패 `ENGINE_NOT_CONNECTED`·조회 실패 5건, `실측 · 이 PC · 16:02:50`, 추이 "최근 3건". 예제 모드 카드·추이 줄별 값은 작업 환경 브라우저 확인만 |
 
 ## 5-1. 상태 요약(관제 대시보드) 확인 순서와 값 표시 규칙
@@ -210,6 +211,24 @@ flowchart LR
 2. 보호 현황 → 「학생 상태·알림 표시」의 상태 요약: 연결 「연결 없음(disconnected)」, 기기·세션 「조회 실패 (ENGINE_NOT_CONNECTED)」, 알림 「조회 실패 n건 · 주의 0건」, 값 종류 `실측 · 이 PC · 시각`.
 3. 「다시 불러오기」를 두 번 누르면 추이 표가 3줄이 되고, 세 줄의 건수가 같으며 맨 위 줄만 "현재"입니다.
 4. Ctrl+C 뒤 `-Demo`로 다시 켜면 값 종류가 모두 `예제 자료(demo) · 실제 값 아님`입니다.
+
+## 5-2. 설치 패키지 조회 요약 확인 순서
+
+총공세 2순위 D로 `renderVulnerabilities` 맨 위(보호 현황 → 「학생 패키지 조회 표시」 칸)에 더한 요약 카드 네 개입니다. 기존 20단계 표시는 그 아래에 그대로 있습니다.
+
+| 카드 | 보여 주는 것 |
+|---|---|
+| 전체 조회 상태 | 조회 전 · 조회 중 · 조회 실패(code) · complete·partial·not_checked·not_configured·unverifiable의 원래 값과 뜻 |
+| 조회한 패키지 수 | complete·partial일 때만 개수(조회 확인 불가 개수 포함). 그 밖에는 "조회 안 됨" |
+| 알려진 취약점 수 | complete: n건·영향 패키지 수, 0건이면 "알려진 항목 없음(안전 보장 아님)". partial: "확인된 것 n건 이상". 그 밖에는 "조회 안 됨" |
+| 조회 시각 | 서버가 알려 준 `checkedAt`을 이 PC 시각으로 표시. 결과가 없으면 "없음" |
+
+"조회 안 됨"은 0개·0건이 아닙니다. 값 종류 표시는 5-1과 같습니다.
+
+확인 순서(원래 작업 폴더의 `on-client`, 기본 실행)
+1. 보호 현황 → 「학생 패키지 조회 표시」: 「설치 패키지 조회」를 누르기 전에는 "조회 전"과 "아직 값 없음".
+2. 「설치 패키지 조회」를 한 번 누르면 "조회 준비 미완료(not_configured)", 패키지 수·취약점 수 "조회 안 됨", 값 종류 `실측 · 이 PC · 시각`.
+3. complete·partial의 카드 값은 조회 대상 프로젝트가 설정돼야 볼 수 있으며, 지금은 모의 데이터로만 확인했습니다.
 
 ## 6. 오류별 확인 순서
 

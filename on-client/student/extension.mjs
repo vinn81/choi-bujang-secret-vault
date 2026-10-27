@@ -923,6 +923,66 @@ function historyTable(entries) {
   return block;
 }
 
+// 총공세 2순위 D: 설치 패키지 조회 요약 카드 네 개(전체 조회 상태·조회한 패키지 수·알려진 취약점 수·조회 시각)입니다.
+// 미조회·조회 실패·설정 필요는 "조회 안 됨"으로 두고 0개·0건으로 바꾸지 않습니다.
+const NOT_SCANNED = { text: '조회 안 됨', tone: 'empty' };
+const dateTimeText = (value) => {
+  const ms = typeof value === 'string' ? Date.parse(value) : NaN;
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${clockText(d)}`;
+};
+
+function vulnerabilityCards({ status, mode, data, error }) {
+  const scanned = status === 'ok' && data && typeof data === 'object' && (data.status === 'complete' || data.status === 'partial');
+  const packages = scanned && Array.isArray(data.packages) ? data.packages : [];
+  let overall;
+  if (status === 'idle') overall = { text: '조회 전', tone: 'empty' };
+  else if (status === 'loading') overall = { text: '조회 중', tone: 'loading' };
+  else if (status === 'error') overall = { text: `조회 실패 (${safeCode(error && error.code)})`, tone: 'error' };
+  else if (status === 'ok' && data && Object.hasOwn(SCAN_STATUS, data.status)) overall = { text: SCAN_STATUS[data.status].label, tone: SCAN_STATUS[data.status].tone };
+  else overall = { text: '확인 불가', tone: 'empty' };
+
+  let packageCount = NOT_SCANNED;
+  let findingCount = NOT_SCANNED;
+  if (scanned) {
+    const unverifiable = packages.filter((row) => row && row.status === 'unverifiable').length;
+    const findings = packages.reduce((sum, row) => sum + (row && Array.isArray(row.vulnerabilities) ? row.vulnerabilities.length : 0), 0);
+    const affected = packages.filter((row) => row && Array.isArray(row.vulnerabilities) && row.vulnerabilities.length > 0).length;
+    packageCount = { text: `${packages.length}개${unverifiable > 0 ? ` · 조회 확인 불가 ${unverifiable}개 포함` : ''}`, tone: unverifiable > 0 ? 'error' : 'ok' };
+    if (data.status === 'partial') findingCount = { text: `확인된 것 ${findings}건 이상 · 일부 패키지 확인 불가`, tone: 'error' };
+    else if (findings > 0) findingCount = { text: `${findings}건 · 패키지 ${affected}개`, tone: 'error' };
+    else findingCount = { text: '0건 · OSV 조회 범위에서 알려진 항목 없음(안전 보장 아님)', tone: 'ok' };
+  }
+  const at = status === 'ok' && data ? dateTimeText(data.checkedAt) : null;
+  const checked = at ? { text: at, tone: 'empty' } : { text: '없음', tone: 'empty' };
+
+  let kind;
+  if (status === 'ok' && at) kind = mode === 'demo'
+    ? { text: '예제 자료(demo) · 실제 값 아님', className: 'tag tag-demo' }
+    : { text: `실측 · 이 PC · ${at.slice(11)}`, className: 'tag' };
+  else if (status === 'error') kind = { text: '실측 · 이 PC · 조회 실패(결과 값 없음)', className: 'tag' };
+  else kind = { text: '아직 값 없음', className: 'muted' };
+
+  const section = document.createElement('section');
+  section.className = 'student-dashboard';
+  section.setAttribute('aria-label', '설치 패키지 조회 요약');
+  section.append(textNode('h4', '조회 요약'));
+  const cards = styled(document.createElement('ul'), {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
+    listStyle: 'none', padding: '0', margin: '8px 0',
+  });
+  cards.className = 'student-dashboard-cards';
+  cards.append(
+    statusCard('전체 조회 상태', overall, kind),
+    statusCard('조회한 패키지 수', packageCount, kind),
+    statusCard('알려진 취약점 수', findingCount, kind),
+    statusCard('조회 시각', checked, kind),
+  );
+  section.append(cards, textNode('p', '"조회 안 됨"은 0개·0건이 아닙니다. 패키지 수와 취약점 수는 모두 조회(complete)나 일부 조회 실패(partial)일 때만 셉니다.', 'muted'));
+  return section;
+}
+
 export function createStudentView() {
   const statusHistory = createStatusHistory();
   return {
@@ -1014,6 +1074,7 @@ export function createStudentView() {
       if (Object.hasOwn(MODE_NOTICE, mode)) {
         root.append(textNode('p', MODE_NOTICE[mode], mode === 'demo' ? 'tag tag-demo' : 'tag'));
       }
+      root.append(vulnerabilityCards({ status, mode, data, error }));
       if (status === 'idle') {
         root.append(textNode('p', `조회 전: 아직 설치 패키지를 조회하지 않았습니다. ${VULN_RECHECK}`, 'state state-empty'));
       } else if (status === 'loading') {
