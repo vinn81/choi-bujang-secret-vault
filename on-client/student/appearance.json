@@ -1,5 +1,6 @@
 {
   "schema": "alekov.student-appearance.v1",
   "appName": "헤임달",
+  "palette": { "accent": "#2f4fb5", "background": "#f3f5fa", "surface": "#ffffff" },
   "dashboardPreset": "student-first"
 }

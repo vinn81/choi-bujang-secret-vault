@@ -1327,7 +1327,7 @@ function pcFailureBox(latest, announce) {
       document.createTextNode(`다음에 할 일: ${next}`));
     list.append(row);
   }
-  box.append(textNode('h4', `조회하지 못한 항목 · ${clockText(latest.requestedAt)}에 누른 조회`, 'state state-error'), list,
+  box.append(textNode('h4', `조회하지 못한 항목 ${failures.length}개 · ${clockText(latest.requestedAt)}에 누른 조회`, 'state state-error'), list,
     textNode('p', '읽지 못한 항목은 예시 값으로 채우지 않고 아래 카드에 「확인 불가」로 둡니다. 다시 조회해 읽히면 이 상자는 사라집니다.', 'muted'));
   return box;
 }
@@ -1375,19 +1375,52 @@ function pcStatusSection(history, measure, sdp) {
 
 // 4일차: 처음 보는 사람이 핵심 기능 3가지와 위치를 먼저 알 수 있게 보호 현황 첫 학생 칸 맨 위에 둡니다.
 function coreFeatureGuide() {
+  // 디자인: 왼쪽 강조색 띠와 번호 배지로 첫 화면에서 먼저 눈에 띄게 합니다(번호는 목록 순서로도 읽힘).
   const section = styled(document.createElement('section'), {
-    border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', marginBottom: '12px',
+    border: '1px solid var(--border)', borderLeft: '4px solid var(--accent)', borderRadius: 'var(--radius)',
+    padding: '10px 14px', marginBottom: '12px', background: 'var(--accent-soft)',
   });
   section.className = 'student-core-guide';
   section.setAttribute('aria-label', '헤임달 핵심 기능 3가지');
-  const list = document.createElement('ol');
-  for (const text of [
+  const list = styled(document.createElement('ol'), { listStyle: 'none', padding: '0', margin: '0', display: 'grid', gap: '6px' });
+  for (const [index, text] of [
     '연결·상태 한눈에 보기 — 이 메뉴 아래 「학생 상태·알림 표시」 (SDP 서버 연결·기기·세션·알림, 내 PC 측정 추이 비교)',
     '설치 패키지 취약점 조회 — 이 메뉴 아래 「학생 패키지 조회 표시」',
     '보안 기록·XDR 경보 — 위쪽 「보안 기록」 메뉴의 「학생 구현 표시」',
-  ]) list.append(textNode('li', text));
+  ].entries()) {
+    const item = styled(document.createElement('li'), { display: 'flex', gap: '8px', alignItems: 'baseline' });
+    const badge = styled(textNode('span', String(index + 1)), {
+      flex: 'none', minWidth: '1.4em', lineHeight: '1.4em', textAlign: 'center', borderRadius: '999px',
+      background: 'var(--accent)', color: '#ffffff', fontWeight: '700', fontSize: '0.8rem',
+    });
+    badge.setAttribute('aria-hidden', 'true');
+    item.append(badge, document.createTextNode(text));
+    list.append(item);
+  }
   section.append(styled(textNode('h3', '헤임달 핵심 기능 3가지'), { margin: '0 0 4px', fontSize: '1rem' }), list);
   return section;
+}
+
+// 디자인(web.dev Typography, W3C Focus Appearance): 학생 칸 글자 크기를 네 단계로 맞추고 긴 설명 문단의 줄 길이를
+// 66ch 로 제한합니다. 이미 크기를 정한 요소(카드 값 등)는 그대로 둡니다. 키보드 초점이 오면 제공 노란 표시 위에
+// 짙은 2px 테두리를 더해 흰 카드 위에서도 잘 보이게 합니다(제공 CSS는 바꾸지 않음).
+const TYPE_SCALE = { H3: '1.15rem', H4: '1rem' };
+function polish(root) {
+  for (const node of root.querySelectorAll('h3, h4')) {
+    if (!node.style.fontSize) node.style.fontSize = TYPE_SCALE[node.tagName];
+    if (!node.style.margin) node.style.margin = node.tagName === 'H3' ? '14px 0 6px' : '10px 0 4px';
+  }
+  for (const node of root.querySelectorAll('p.muted')) {
+    if (!node.style.fontSize) node.style.fontSize = '0.85rem';
+    node.style.maxInlineSize = '66ch';
+  }
+  for (const node of root.querySelectorAll('button, select, input, summary, [tabindex="0"]')) {
+    node.addEventListener('focus', () => {
+      if (node.matches(':focus-visible')) Object.assign(node.style, { outline: '2px solid var(--text)', outlineOffset: '2px' });
+    });
+    node.addEventListener('blur', () => Object.assign(node.style, { outline: '', outlineOffset: '' }));
+  }
+  return root;
 }
 
 export function createStudentView({ api, onChange } = {}) {
@@ -1410,7 +1443,7 @@ export function createStudentView({ api, onChange } = {}) {
   } : null;
   // 보안 기록을 받은 시각입니다. 불러오는 중이 되면 지우고, 새 결과를 처음 그릴 때 한 번만 정합니다.
   let eventsSeenAt = null;
-  return {
+  const view = {
     // 입력이 바뀔 때마다 새 DOM 요소 하나를 돌려줍니다. 이전 호출의 사용자·기기·세션 값은 저장하지 않으므로
     // 다시 불러오기나 오류가 오면 제공 UI가 학생 칸을 이 새 요소로 통째로 교체합니다.
     renderIdentity({ me, devices, sessions } = {}) {
@@ -1625,4 +1658,13 @@ export function createStudentView({ api, onChange } = {}) {
       return root;
     },
   };
+  // 모든 render 결과(DOM 요소)에 같은 글자 크기 단계와 초점 표시를 적용합니다. 문자열 결과는 그대로 돌려줍니다.
+  for (const [name, render] of Object.entries(view)) {
+    if (typeof render !== 'function' || !name.startsWith('render')) continue;
+    view[name] = (...args) => {
+      const output = render.apply(view, args);
+      return output instanceof Element ? polish(output) : output;
+    };
+  }
+  return view;
 }
