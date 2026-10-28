@@ -17,8 +17,8 @@ const SESSION_STATUS = {
 // loading·ok·error 어느 상태든 전달받은 mode 가 아래 셋이면 함께 표시합니다.
 const MODE_NOTICE = {
   demo: '예제 자료(demo) · 실제 연결 결과가 아닙니다',
-  disconnected: '연결 없음(disconnected) · 회사 시스템에 연결되지 않았습니다',
-  unknown: '확인 불가(unknown) · 연결 상태를 확인할 수 없습니다',
+  disconnected: 'SDP 미연결(disconnected) · 회사 시스템(SDP 서버)에 연결되지 않았습니다',
+  unknown: '확인 불가(unknown) · SDP 서버 연결 상태를 확인할 수 없습니다',
 };
 // 응답 형식이 맞지 않는 오류는 연결 실패가 아니라 확인 불가입니다.
 const UNVERIFIED_CODES = new Set(['CONTRACT_MISMATCH', 'ENGINE_RESULT_UNVERIFIED']);
@@ -1195,7 +1195,8 @@ const PC_KIND_TEXT = { measured: '실측 · 이 PC', failed: '조회 실패', st
 
 function pcLatestCards(latest) {
   const cards = styled(document.createElement('ul'), {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
+    // 카드 여섯 개를 세 개씩 두 줄로 놓아 단위·안내 문구가 좁게 꺾이지 않게 합니다.
+    display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px',
     listStyle: 'none', padding: '0', margin: '8px 0',
   });
   cards.className = 'student-dashboard-cards';
