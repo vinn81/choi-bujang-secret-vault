@@ -840,8 +840,9 @@ function statusCard(title, summary, kind) {
   });
   card.className = 'student-dashboard-card';
   card.append(
-    styled(textNode('h4', title), { margin: '0', fontSize: '0.8rem', color: 'var(--muted)' }),
-    styled(textNode('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', overflowWrap: 'anywhere' }),
+    styled(textNode('h4', title), { margin: '0', fontSize: '0.85rem', color: 'var(--muted)' }),
+    // 4일차: 처음 보는 사람도 값을 먼저 읽도록 핵심 값 글자를 조금 키웁니다. 상태 색·글자 구분은 그대로입니다.
+    styled(textNode('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', fontSize: '1.1rem', overflowWrap: 'anywhere' }),
     styled(textNode('p', kind.text, kind.className), { margin: '0', alignSelf: 'flex-start', fontSize: '0.75rem' }),
   );
   return card;
@@ -886,6 +887,16 @@ function statusDashboard({ devices, sessions, notifications, mode }, history) {
   return section;
 }
 
+// 4일차: 가로로 넓은 표는 Tab으로 초점을 받아 방향키로 가로 이동할 수 있게 합니다.
+function tableScroller(table) {
+  const scroller = styled(document.createElement('div'), { overflowX: 'auto' });
+  scroller.tabIndex = 0;
+  scroller.setAttribute('role', 'region');
+  scroller.setAttribute('aria-label', `${table.caption ? table.caption.textContent : '표'} (방향키로 가로 이동)`);
+  scroller.append(table);
+  return scroller;
+}
+
 function historyTable(entries) {
   const block = document.createElement('div');
   block.append(textNode('h4', '추이: 이번 실행의 확인 기록'));
@@ -923,8 +934,7 @@ function historyTable(entries) {
     tbody.append(row);
   });
   table.append(thead, tbody);
-  const scroller = styled(document.createElement('div'), { overflowX: 'auto' });
-  scroller.append(table);
+  const scroller = tableScroller(table);
   block.append(scroller, textNode('p', '「다시 불러오기」를 누를 때마다 한 줄씩 쌓입니다(최대 10줄). 브라우저 메모리에만 있으므로 새로고침하면 사라지며, 파일이나 서버에 저장하지 않습니다.', 'muted'));
   return block;
 }
@@ -1114,8 +1124,8 @@ function pcMetric(key, metric) {
     }
     return { ok: false, text: '확인 불가', reason: '응답 값이나 단위를 확인할 수 없음' };
   }
-  const reason = metric && Object.hasOwn(PC_REASONS, metric.reason) ? PC_REASONS[metric.reason] : '응답 값이나 단위를 확인할 수 없음';
-  return { ok: false, text: '확인 불가', reason };
+  const known = metric && Object.hasOwn(PC_REASONS, metric.reason);
+  return { ok: false, text: '확인 불가', reason: known ? PC_REASONS[metric.reason] : '응답 값이나 단위를 확인할 수 없음', code: known ? metric.reason : null };
 }
 
 // 조회 결과 한 번을 기록 한 줄로 바꿉니다. 응답이 성공해도 항목마다 값을 읽었는지는 따로 봅니다.
@@ -1123,9 +1133,9 @@ function pcMeasurement(result, requestedAt, receivedAt) {
   if (!result || result.ok !== true) {
     const code = safeCode(result && result.error && result.error.code);
     if (code === 'NOT_ALLOWED') {
-      return { kind: 'unsupported', requestedAt, note: '이 앱 판의 학생 계약에서는 내 PC 값을 읽을 수 없습니다(NOT_ALLOWED). 제공 「내 PC 상태」 카드를 보세요.' };
+      return { kind: 'unsupported', requestedAt, code, note: '이 앱 판의 학생 계약에서는 내 PC 값을 읽을 수 없습니다(NOT_ALLOWED). 제공 「내 PC 상태」 카드를 보세요.' };
     }
-    return { kind: 'failed', requestedAt, note: `조회 실패 (${code}) · 앱이 실행 중인지 확인한 뒤 버튼을 다시 누르세요.` };
+    return { kind: 'failed', requestedAt, code, note: `조회 실패 (${code})` };
   }
   const data = result.data;
   const measured = data && typeof data.measuredAt === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/u.test(data.measuredAt) ? Date.parse(data.measuredAt) : NaN;
@@ -1144,8 +1154,11 @@ function pcMeasurement(result, requestedAt, receivedAt) {
 function createPcHistory(limit = 10) {
   const entries = [];
   let pending = false;
+  let fresh = false;
   return {
-    add(entry) { entries.unshift(entry); if (entries.length > limit) entries.pop(); },
+    add(entry) { entries.unshift(entry); if (entries.length > limit) entries.pop(); fresh = true; },
+    // 방금 받은 결과를 처음 그릴 때만 true 입니다. 다른 자료로 다시 그릴 때 실패 알림을 되풀이하지 않습니다.
+    takeFresh() { const value = fresh; fresh = false; return value; },
     list: () => entries,
     get pending() { return pending; },
     set pending(value) { pending = value === true; },
@@ -1226,7 +1239,7 @@ function pcHistoryTable(entries) {
   const block = document.createElement('div');
   block.append(textNode('h4', '추이: 이번 실행의 내 PC 측정 기록'));
   if (entries.length === 0) {
-    block.append(textNode('p', '아직 측정 기록이 없습니다. 「내 PC 측정 기록 추가」를 누르면 첫 줄이 생깁니다.', 'muted'));
+    block.append(textNode('p', '아직 측정 기록이 없습니다. 「조회」를 누르면 첫 줄이 생깁니다.', 'muted'));
     return block;
   }
   const cellStyle = { padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'left', verticalAlign: 'top', overflowWrap: 'anywhere' };
@@ -1256,10 +1269,55 @@ function pcHistoryTable(entries) {
     tbody.append(row);
   });
   table.append(thead, tbody);
-  const scroller = styled(document.createElement('div'), { overflowX: 'auto' });
-  scroller.append(table);
+  const scroller = tableScroller(table);
   block.append(scroller);
   return block;
+}
+
+// 4일차: 조회하지 못한 항목과 다음에 할 일입니다. 예시 값으로 대신 채우지 않습니다.
+const PC_NEXT_STEP = {
+  permission_denied: '관리자 권한으로 바꾸지 말고 담당자에게 읽기 권한을 확인한 뒤 「다시 조회」를 누르세요.',
+  timeout: '잠시 뒤 「다시 조회」를 누르세요.',
+  cancelled: '「다시 조회」를 누르세요.',
+  unsupported: '이 운영체제에서는 읽지 않는 항목이라 다시 조회해도 바뀌지 않습니다.',
+};
+const PC_NEXT_DEFAULT = '「다시 조회」를 누르고, 계속되면 앱을 실행한 PowerShell 창의 메시지를 확인하세요.';
+
+function pcFailures(latest) {
+  if (!latest) return [];
+  if (latest.kind === 'failed') {
+    const next = latest.code === 'NETWORK_ERROR'
+      ? '앱 서버에 연결하지 못했습니다. 앱을 실행한 PowerShell 창이 켜져 있는지 확인한 뒤 「다시 조회」를 누르세요.'
+      : PC_NEXT_DEFAULT;
+    return [{ item: '여섯 항목 전체', reason: latest.note, next }];
+  }
+  if (latest.kind === 'stale') return [{ item: '여섯 항목 전체', reason: latest.note, next: '「다시 조회」를 누르세요. 계속되면 PC 시계가 맞는지 확인하세요.' }];
+  if (latest.kind === 'unsupported') return [{ item: '여섯 항목 전체', reason: latest.note, next: '다시 조회해도 바뀌지 않습니다. 제공 「내 PC 상태」 카드를 보세요.' }];
+  return PC_KEYS.filter((key) => !latest.metrics[key].ok).map((key) => ({
+    item: PC_TITLES[key], reason: latest.metrics[key].reason,
+    next: Object.hasOwn(PC_NEXT_STEP, latest.metrics[key].code) ? PC_NEXT_STEP[latest.metrics[key].code] : PC_NEXT_DEFAULT,
+  }));
+}
+
+function pcFailureBox(latest, announce) {
+  const failures = pcFailures(latest);
+  if (failures.length === 0) return null;
+  const box = styled(document.createElement('div'), {
+    border: '1px solid var(--deny)', borderRadius: 'var(--radius)', padding: '8px 12px', margin: '8px 0',
+  });
+  box.className = 'student-pc-failures';
+  // 방금 누른 조회의 결과일 때만 화면 읽기 프로그램에 바로 알립니다.
+  if (announce) box.setAttribute('role', 'alert');
+  const list = document.createElement('ul');
+  for (const { item, reason, next } of failures) {
+    const row = document.createElement('li');
+    row.append(textNode('strong', `${item}: `), document.createTextNode(`읽지 못함 · 이유: ${reason}`), document.createElement('br'),
+      document.createTextNode(`다음에 할 일: ${next}`));
+    list.append(row);
+  }
+  box.append(textNode('h4', `조회하지 못한 항목 · ${clockText(latest.requestedAt)}에 누른 조회`, 'state state-error'), list,
+    textNode('p', '읽지 못한 항목은 예시 값으로 채우지 않고 아래 카드에 「확인 불가」로 둡니다. 다시 조회해 읽히면 이 상자는 사라집니다.', 'muted'));
+  return box;
 }
 
 function pcStatusSection(history, measure, sdp) {
@@ -1273,7 +1331,8 @@ function pcStatusSection(history, measure, sdp) {
   );
   const entries = history.list();
   const latest = entries[0] || null;
-  const button = textNode('button', history.pending ? '측정 중…' : '내 PC 측정 기록 추가', 'btn');
+  // 처음에는 「조회」, 결과가 한 번이라도 나온 뒤에는 「다시 조회」입니다. 읽는 동안은 대기 표시를 합니다.
+  const button = textNode('button', history.pending ? '새로 읽는 중…' : latest ? '다시 조회' : '조회', 'btn');
   button.type = 'button';
   button.setAttribute('data-student-pc-measure', '');
   if (measure) {
@@ -1282,16 +1341,40 @@ function pcStatusSection(history, measure, sdp) {
   } else {
     button.disabled = true;
   }
+  if (history.pending) section.setAttribute('aria-busy', 'true');
+  const readCount = latest && latest.kind === 'measured' ? PC_KEYS.filter((key) => latest.metrics[key].ok).length : 0;
   const result = textNode('p', !measure
     ? '확인 불가: 이 앱 판은 학생 코드에 조회 기능(api)을 넘겨 주지 않습니다. 제공 「내 PC 상태」 카드를 보세요.'
-    : history.pending ? '이 PC에서 읽는 중… 아직 이번 측정 값이 없습니다.'
-      : latest ? `${clockText(latest.requestedAt)}에 누른 측정: ${latest.kind === 'measured' ? '실측을 받았습니다.' : `${PC_KIND_TEXT[latest.kind]} · ${latest.note}`}`
-        : '아직 측정하지 않았습니다. 버튼을 누를 때만 한 번 읽습니다.', 'muted');
+    : history.pending ? '새로 읽는 중… 아직 이번 값이 없습니다. 이전 값은 아래 표의 과거 측정입니다.'
+      : latest ? `${clockText(latest.requestedAt)}에 누른 조회: ${latest.kind === 'measured'
+        ? `실측 ${readCount}/${PC_KEYS.length}${readCount < PC_KEYS.length ? ` · 확인 불가 ${PC_KEYS.length - readCount}개` : ''}`
+        : '조회하지 못했습니다. 아래 「조회하지 못한 항목」을 보세요.'}`
+        : '아직 조회하지 않았습니다. 「조회」를 누를 때만 한 번 읽습니다(Tab으로 이동, Enter·Space로 누름).', 'muted');
   result.setAttribute('role', 'status');
+  const failureBox = history.pending ? null : pcFailureBox(latest, history.takeFresh());
+  section.append(button, result);
+  if (failureBox) section.append(failureBox);
   section.append(
-    button, result, pcLatestCards(latest), pcHistoryTable(entries),
+    pcLatestCards(latest), pcHistoryTable(entries),
     textNode('p', '"확인 불가"는 0이나 정상이 아닙니다. 예시 값으로 채우지 않으며, 값을 읽지 못한 항목은 비교하지 않습니다. 자동으로 다시 읽지 않고, 기록은 브라우저 메모리에만 있어 새로고침하면 사라집니다(파일·서버·AI로 보내지 않음). 예제 모드(-Demo)에서도 이 칸의 값은 이 PC 실측입니다.', 'muted'),
   );
+  return section;
+}
+
+// 4일차: 처음 보는 사람이 핵심 기능 3가지와 위치를 먼저 알 수 있게 보호 현황 첫 학생 칸 맨 위에 둡니다.
+function coreFeatureGuide() {
+  const section = styled(document.createElement('section'), {
+    border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', marginBottom: '12px',
+  });
+  section.className = 'student-core-guide';
+  section.setAttribute('aria-label', '헤임달 핵심 기능 3가지');
+  const list = document.createElement('ol');
+  for (const text of [
+    '연결·상태 한눈에 보기 — 이 메뉴 아래 「학생 상태·알림 표시」 (SDP 서버 연결·기기·세션·알림, 내 PC 측정 추이 비교)',
+    '설치 패키지 취약점 조회 — 이 메뉴 아래 「학생 패키지 조회 표시」',
+    '보안 기록·XDR 경보 — 위쪽 「보안 기록」 메뉴의 「학생 구현 표시」',
+  ]) list.append(textNode('li', text));
+  section.append(styled(textNode('h3', '헤임달 핵심 기능 3가지'), { margin: '0 0 4px', fontSize: '1rem' }), list);
   return section;
 }
 
@@ -1321,6 +1404,7 @@ export function createStudentView({ api, onChange } = {}) {
     renderIdentity({ me, devices, sessions } = {}) {
       const root = document.createElement('div');
       root.className = 'student-identity';
+      root.append(coreFeatureGuide());
       root.append(
         resourceSection('현재 로그인 (계정·기기·세션)', me, renderMe),
         resourceSection('내 기기 목록', devices, (data) => renderList(data, '등록된 기기가 없습니다.', deviceRow)),
