@@ -1,4 +1,6 @@
-# BYTE BACK 방어전 12단계 — 탈환 작전실을 완성합니다
+# BYTE BACK 방어전 — 최부장 비밀 자료실(1~12단계)과 보안 Agent 「헤임달」(13~22단계·총공세)
+
+> 최종 정리: 보안 Agent 「헤임달」의 완성 기록은 [`ALEPH_FINAL_WORK_RECORD.md`](ALEPH_FINAL_WORK_RECORD.md), 시연 순서·한계·근거는 [`on-client/docs/DEMO_AND_LIMITS.md`](on-client/docs/DEMO_AND_LIMITS.md), 처음 보는 사람용 실행 안내는 [`on-client/docs/RUN_GUIDE_ONE_PAGE.md`](on-client/docs/RUN_GUIDE_ONE_PAGE.md)에 있습니다. 아래 첫 문단과 「현재 작동」의 앞부분은 1~12단계 자료실 설명입니다.
 
 브라우저의 가상 메모 읽기·추가·수정·삭제를 Vercel 서버 함수로만 처리합니다. 판정기는 등록 기기, 평소와 다른 복합 접속, 자원 구역별 정확한 경로를 차례로 확인하고, 자료 API도 검증된 사용자와 구역·소유자를 다시 대조합니다. 탐지 함수는 같은 사용자의 조회 폭주를 찾아 회수를 제안하고, 검증한 사본에서 정책과 메모 한 건을 되살립니다. 설치형 웹앱 화면과 패스키 기기 승인 흐름을 붙여 서버가 승인한 기기에서만 메모를 열고, 탈환 작전실에서 판정·탐지·회수·복구의 실제 결과를 읽는 12단계 자료실입니다. Supabase Auth 로그인과 서버의 토큰·소유자 검사는 유지하며, 원본 `public.notes`에 대한 PUBLIC·anon·authenticated 직접 권한은 회수합니다.
 
@@ -23,7 +25,7 @@
 - 자기 점검(`src/attack-check.mjs`)은 묶음 실행 중 네트워크 요청을 보내지 않고 20건 모두 `not_run`으로 적습니다. 비로그인 거부·메모 0건 같은 실측은 배포 서버의 요청 기록과 작전실 실측 재확인 표에서 확인합니다.
 - 보너스 XDR은 가상 Wazuh 무차별 로그인 경보를 `block`·`alert`·`record`로 나누고, `block` 주소만 15분 만료 거부 규칙 후보로 만듭니다.
 - 보너스 XDR xdr-02는 가상 웹 주입 경보를 같은 세 단계로 나누고, 반복된 명확한 주입 시도의 주소만 15분 만료 거부 규칙 후보로 만듭니다.
-- 보안 Agent 「헤임달」(`on-client/`): 13~20단계 학생 화면(로그인·기기·세션, 업무 앱 판정, 기록 목록·상세, 알림·빈 상태·오류·도움정보, AI 연결 점검, AI 사건 설명, 보안 조치 상태, 설치 패키지·OSV 조회)을 `on-client/student/extension.mjs`에 구현했습니다. 실행 설명서와 구성도는 `on-client/docs/STUDENT_RUNBOOK.md`(21단계), 재현·릴리스 기록은 `on-client/docs/RELEASE_RECORD.md`(22단계)입니다. 22단계 뒤 총공세로 상태·패키지·기록 요약 카드와 「내 PC 측정 추이 비교」를 더했고, 핵심 기능 점검표는 `on-client/docs/CORE_FEATURES.md`입니다. 아래 「보안 Agent 「헤임달」」 절을 봅니다.
+- 보안 Agent 「헤임달」(`on-client/`, 시작 틀 0.2.21): 13~20단계 학생 화면(로그인·기기·세션, 업무 앱 판정, 기록 목록·상세, 알림·빈 상태·오류·도움정보, AI 연결 점검, AI 사건 설명, 보안 조치 상태, 설치 패키지·OSV 조회)을 `on-client/student/extension.mjs`에 구현했고, 총공세로 상태·패키지·기록 요약 카드, 「내 PC 측정 추이 비교」(CPU·메모리·디스크·네트워크·방화벽·Windows 기록 건수), SDP 미연결 구분, 「다시 조회」와 조회 실패 화면을 더했습니다. 실행 설명서와 구성도는 `on-client/docs/STUDENT_RUNBOOK.md`(21단계), 재현·릴리스 기록은 `on-client/docs/RELEASE_RECORD.md`(22단계)입니다. 22단계 뒤 총공세로 상태·패키지·기록 요약 카드와 「내 PC 측정 추이 비교」를 더했고, 핵심 기능 점검표는 `on-client/docs/CORE_FEATURES.md`입니다. 아래 「보안 Agent 「헤임달」」 절을 봅니다.
 
 ## 보안 Agent 「헤임달」 (13~22단계와 총공세, `on-client/`)
 

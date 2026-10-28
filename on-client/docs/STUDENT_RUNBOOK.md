@@ -1,6 +1,6 @@
 # 보안 Agent 「헤임달」 학생 실행 설명서와 구성도
 
-이 문서는 학생이 작성했습니다. 시작 틀 0.2.14의 `on-client`(제공 앱 이름 「케셰브」)에 학생 화면을 구현한 보안 Agent 「헤임달」을 다른 사람이 같은 순서로 실행하고 확인할 수 있게 정리합니다. 제공 문서(`docs/STUDENT_LAUNCH_GUIDE.md`, `docs/CONNECTION_TROUBLESHOOT.md` 등)는 바꾸지 않았고, 이 문서는 그 내용을 이 프로젝트에서 실제로 확인한 결과와 함께 묶은 것입니다.
+이 문서는 학생이 작성했습니다. 시작 틀 `on-client`(21단계 작성 때 0.2.14, 2026-10-28에 0.2.21로 갱신. 제공 앱 이름 「케셰브」, 꾸밈 파일로 화면 이름은 「헤임달」)에 학생 화면을 구현한 보안 Agent 「헤임달」을 다른 사람이 같은 순서로 실행하고 확인할 수 있게 정리합니다. 제공 문서(`docs/STUDENT_LAUNCH_GUIDE.md`, `docs/CONNECTION_TROUBLESHOOT.md` 등)는 바꾸지 않았고, 이 문서는 그 내용을 이 프로젝트에서 실제로 확인한 결과와 함께 묶은 것입니다.
 
 표기 규칙
 - **실제 확인**: 학생 PC(Windows, VS Code, PowerShell, Chrome)의 실제 화면·터미널에서 본 결과입니다.
@@ -8,7 +8,7 @@
 - **코드 확인**: 코드를 읽어 확인했지만 실행하지 않은 내용입니다.
 - **미확인**: 실행하지 않았거나 확인할 수 없었던 내용입니다. 성공으로 적지 않습니다.
 
-예제(demo)·연결 없음(disconnected)·권한 준비 중은 실제 연결 성공이 아닙니다. 최종 커밋을 새 폴더에서 재현한 기록과 버전·데이터 보존 계획은 [RELEASE_RECORD.md](RELEASE_RECORD.md)(22단계)에 있습니다. 이 문서의 확인 결과는 학생의 실행·관찰이며 ALEPH 판정이 아닙니다.
+예제(demo)·연결 없음(disconnected)·권한 준비 중은 실제 연결 성공이 아닙니다. 최종 커밋을 새 폴더에서 재현한 기록과 버전·데이터 보존 계획은 [RELEASE_RECORD.md](RELEASE_RECORD.md)(22단계)에 있습니다. 처음 보는 사람용 짧은 안내는 [RUN_GUIDE_ONE_PAGE.md](RUN_GUIDE_ONE_PAGE.md), 시연 순서·한계·근거는 [DEMO_AND_LIMITS.md](DEMO_AND_LIMITS.md), 총공세 일차별 확인 결과는 [CORE_FEATURES.md](CORE_FEATURES.md)에 있습니다. 이 문서의 확인 결과는 학생의 실행·관찰이며 ALEPH 판정이 아닙니다.
 
 ## 1. 필요 프로그램과 확인한 버전
 
@@ -30,7 +30,7 @@
 choi-bujang-secret-vault/            저장소 최상위(Git 최상위 폴더)
 ├─ README.md                         저장소 전체 설명(헤임달 요약 포함)
 └─ on-client/                        보안 Agent 앱 폴더 = 실행 위치
-   ├─ package.json                   이름 alekov-client-starter, 버전 0.2.14, 스크립트 start·demo·check
+   ├─ package.json                   이름 alekov-client-starter, 버전 0.2.21, 스크립트 start·demo·check·package-app(실행하지 않음)
    ├─ tools/start-alekov.ps1         실행 도구(Node 버전·폴더·포트 확인 후 서버 실행)
    ├─ src/server.mjs                 로컬 앱 서버(127.0.0.1에서만 대기, 기본 포트 5189)
    ├─ src/engine.mjs, src/engine/    접근 제어·기록 엔진 연결(SDP host), --demo면 예제 엔진
@@ -38,10 +38,12 @@ choi-bujang-secret-vault/            저장소 최상위(Git 최상위 폴더)
    ├─ src/actions/                   보안 조치 준비·집행·결과 조회
    ├─ src/vulnerabilities/           package-lock.json 읽기와 OSV 조회
    ├─ public/                        제공 화면(index.html, app.js, ai-connect.mjs, vulnerabilities-view.mjs 등)
-   ├─ student/extension.mjs          학생 구현 파일(13~20단계 render 함수 8개)
+   ├─ student/extension.mjs          학생 구현 파일(13~20단계 render 함수 8개와 총공세 화면)
+   ├─ student/appearance.json        학생 꾸밈 파일(앱 이름 「헤임달」, 학생 카드 먼저)
+   ├─ src/pc-status.mjs              제공 「내 PC 상태」 조회(0.2.21)
    ├─ student/engine-adapter.mjs     제공 어댑터(학생이 바꾸지 않음)
    ├─ vendor/clco-http.mjs           제공 HTTP 모듈
-   └─ docs/                          제공 문서 + 이 문서(STUDENT_RUNBOOK.md)
+   └─ docs/                          제공 문서 + 학생 문서(STUDENT_RUNBOOK·RELEASE_RECORD·CORE_FEATURES·RUN_GUIDE_ONE_PAGE·DEMO_AND_LIMITS)
 ```
 
 ## 3. 실행 순서
