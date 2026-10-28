@@ -845,16 +845,17 @@ function breakableText(tag, text, className) {
 }
 
 function statusCard(title, summary, kind) {
+  // 디자인(Vercel 포트폴리오 템플릿의 원칙): 그림자 없는 흰 카드, 얇은 1px 테두리, 작은 회색 라벨과 큰 값.
   const card = styled(document.createElement('li'), {
-    display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px',
-    border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)',
+    display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px',
+    border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)',
   });
   card.className = 'student-dashboard-card';
   card.append(
-    styled(textNode('h4', title), { margin: '0', fontSize: '0.85rem', color: 'var(--muted)' }),
+    styled(textNode('h4', title), { margin: '0', fontSize: '0.78rem', fontWeight: '500', letterSpacing: '0.02em', color: 'var(--muted)' }),
     // 4일차: 처음 보는 사람도 값을 먼저 읽도록 짧은 핵심 값은 글자를 조금 키웁니다. 오류 코드처럼 긴 값은 좁은 카드에서
     // 괄호만 다음 줄로 떨어지지 않게 기본 크기로 둡니다. 상태 색·글자 구분은 그대로입니다.
-    styled(breakableText('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', fontSize: summary.text.length > 20 ? '1rem' : '1.1rem', wordBreak: 'keep-all', overflowWrap: 'anywhere' }),
+    styled(breakableText('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', fontSize: summary.text.length > 20 ? '1rem' : '1.25rem', letterSpacing: '-0.01em', wordBreak: 'keep-all', overflowWrap: 'anywhere' }),
     styled(textNode('p', kind.text, kind.className), { margin: '0', alignSelf: 'flex-start', fontSize: '0.75rem' }),
   );
   return card;
@@ -932,7 +933,7 @@ function historyTable(entries) {
   const tbody = document.createElement('tbody');
   entries.forEach((entry, index) => {
     const current = index === 0;
-    const row = styled(document.createElement('tr'), current ? { background: 'var(--accent-soft)', fontWeight: '600' } : { color: 'var(--muted)' });
+    const row = styled(document.createElement('tr'), current ? { background: 'var(--bg)', fontWeight: '600' } : { color: 'var(--muted)' });
     const cells = [
       [clockText(entry.at), null], [current ? '현재' : '과거 확인', null], [entry.connection, null],
       [entry.devices.text, entry.devices.tone], [entry.sessions.text, entry.sessions.tone], [entry.alerts.text, entry.alerts.tone],
@@ -1269,7 +1270,7 @@ function pcHistoryTable(entries) {
   thead.append(head);
   const tbody = document.createElement('tbody');
   entries.forEach((entry, index) => {
-    const row = styled(document.createElement('tr'), index === 0 ? { background: 'var(--accent-soft)' } : { color: 'var(--muted)' });
+    const row = styled(document.createElement('tr'), index === 0 ? { background: 'var(--bg)', fontWeight: '600' } : { color: 'var(--muted)' });
     const time = entry.measuredAt ? clockText(entry.measuredAt) : `없음(요청 ${clockText(entry.requestedAt)})`;
     const values = entry.kind === 'measured'
       ? PC_KEYS.map((key) => (entry.metrics[key].ok ? entry.metrics[key].text : `확인 불가 · ${entry.metrics[key].reason}`))
@@ -1377,8 +1378,8 @@ function pcStatusSection(history, measure, sdp) {
 function coreFeatureGuide() {
   // 디자인: 왼쪽 강조색 띠와 번호 배지로 첫 화면에서 먼저 눈에 띄게 합니다(번호는 목록 순서로도 읽힘).
   const section = styled(document.createElement('section'), {
-    border: '1px solid var(--border)', borderLeft: '4px solid var(--accent)', borderRadius: 'var(--radius)',
-    padding: '10px 14px', marginBottom: '12px', background: 'var(--accent-soft)',
+    border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: '6px',
+    padding: '12px 16px', marginBottom: '16px', background: 'var(--surface)',
   });
   section.className = 'student-core-guide';
   section.setAttribute('aria-label', '헤임달 핵심 기능 3가지');
@@ -1404,15 +1405,27 @@ function coreFeatureGuide() {
 // 디자인(web.dev Typography, W3C Focus Appearance): 학생 칸 글자 크기를 네 단계로 맞추고 긴 설명 문단의 줄 길이를
 // 66ch 로 제한합니다. 이미 크기를 정한 요소(카드 값 등)는 그대로 둡니다. 키보드 초점이 오면 제공 노란 표시 위에
 // 짙은 2px 테두리를 더해 흰 카드 위에서도 잘 보이게 합니다(제공 CSS는 바꾸지 않음).
-const TYPE_SCALE = { H3: '1.15rem', H4: '1rem' };
+const TYPE_SCALE = { H3: '1.25rem', H4: '1rem' };
 function polish(root) {
   for (const node of root.querySelectorAll('h3, h4')) {
     if (!node.style.fontSize) node.style.fontSize = TYPE_SCALE[node.tagName];
-    if (!node.style.margin) node.style.margin = node.tagName === 'H3' ? '14px 0 6px' : '10px 0 4px';
+    if (!node.style.margin) node.style.margin = node.tagName === 'H3' ? '20px 0 8px' : '12px 0 6px';
+    if (node.tagName === 'H3' && !node.style.letterSpacing) Object.assign(node.style, { fontWeight: '600', letterSpacing: '-0.015em' });
   }
   for (const node of root.querySelectorAll('p.muted')) {
     if (!node.style.fontSize) node.style.fontSize = '0.85rem';
     node.style.maxInlineSize = '66ch';
+  }
+  // 버튼: 주 동작(「조회」/「다시 조회」)은 검정 바탕 흰 글자, 나머지는 흰 바탕 얇은 테두리. 비활성 버튼은 제공 모양 그대로.
+  for (const node of root.querySelectorAll('button')) {
+    if (node.disabled) continue;
+    const primary = node.hasAttribute('data-student-pc-measure');
+    Object.assign(node.style, {
+      borderRadius: '6px', padding: '7px 14px', fontWeight: '500', border: '1px solid',
+      borderColor: primary ? 'var(--accent)' : 'var(--border)',
+      background: primary ? 'var(--accent)' : 'var(--surface)', color: primary ? '#ffffff' : 'var(--text)',
+      opacity: node.getAttribute('aria-disabled') === 'true' ? '0.6' : '',
+    });
   }
   for (const node of root.querySelectorAll('button, select, input, summary, [tabindex="0"]')) {
     node.addEventListener('focus', () => {
