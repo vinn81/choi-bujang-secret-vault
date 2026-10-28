@@ -211,7 +211,7 @@ flowchart LR
 
 확인 순서(원래 작업 폴더의 `on-client`)
 1. `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1`로 켜고 `http://127.0.0.1:5189/`에서 F5.
-2. 보호 현황 → 「학생 상태·알림 표시」의 상태 요약: 연결 「연결 없음(disconnected)」, 기기·세션 「조회 실패 (ENGINE_NOT_CONNECTED)」, 알림 「조회 실패 n건 · 주의 0건」, 값 종류 `실측 · 이 PC · 시각`.
+2. 보호 현황 → 「학생 상태·알림 표시」의 상태 요약: SDP 서버 연결 「SDP 미연결(disconnected)」(총공세 3일차 전에는 「연결」 카드의 「연결 없음(disconnected)」), 기기·세션 「조회 실패 (ENGINE_NOT_CONNECTED)」, 알림 「조회 실패 n건 · 주의 0건」, 값 종류 `실측 · 이 PC · 시각`.
 3. 「다시 불러오기」를 두 번 누르면 추이 표가 3줄이 되고, 세 줄의 건수가 같으며 맨 위 줄만 "현재"입니다.
 4. Ctrl+C 뒤 `-Demo`로 다시 켜면 값 종류가 모두 `예제 자료(demo) · 실제 값 아님`입니다.
 
