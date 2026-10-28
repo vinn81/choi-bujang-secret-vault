@@ -753,12 +753,18 @@ function packageList(data) {
 // 총공세 1순위 A: 관제 대시보드형 상태 카드 네 개(연결·기기·세션·알림)와 이번 실행의 추이입니다.
 // 카드는 제공 화면이 넘긴 현재 값만 씁니다. 실측(이 PC)·예제 자료(demo)·아직 값 없음을 글자로 구분하고,
 // 연결 없음·조회 실패·확인 불가를 0건이나 정상으로 바꾸지 않습니다.
+// 이 카드는 SDP 서버(접근 제어·XDR 연결) 연결 상태만 뜻합니다. 내 PC 조회 성공과 섞지 않습니다.
 const CONNECTION_CARD = {
-  connected: { text: '연결됨(connected)', tone: 'ok' },
-  demo: { text: '예제 자료(demo) · 실제 연결 아님', tone: 'empty' },
-  disconnected: { text: '연결 없음(disconnected)', tone: 'error' },
-  unknown: { text: '확인 불가(unknown)', tone: 'empty' },
+  connected: { text: 'SDP 연결됨(connected) · 서버 응답 기준', tone: 'ok' },
+  demo: { text: '예제 자료(demo) · SDP 연결 아님', tone: 'empty' },
+  disconnected: { text: 'SDP 미연결(disconnected)', tone: 'error' },
 };
+// 연결 여부를 확인하지 못했으면 미연결로 단정하지 않고 확인 불가와 이유를 적습니다.
+function sdpConnection(mode, settled) {
+  if (settled && Object.hasOwn(CONNECTION_CARD, mode)) return CONNECTION_CARD[mode];
+  const reason = settled ? '응답의 연결 상태가 없거나 서로 달라 판단할 수 없음' : '기본 조회 응답을 기다리는 중';
+  return { text: `확인 불가(unknown) · 이유: ${reason}`, tone: settled ? 'empty' : 'loading' };
+}
 // 제공 style.css 에 대시보드용 규칙이 없으므로, 제공 색 변수만 써서 학생 요소에 배치를 직접 지정합니다.
 const styled = (node, styles) => { Object.assign(node.style, styles); return node; };
 const TONE_COLOR = { ok: 'var(--allow)', error: 'var(--deny)', loading: 'var(--muted)', empty: 'var(--unknown)' };
@@ -843,7 +849,7 @@ function statusCard(title, summary, kind) {
 
 function statusDashboard({ devices, sessions, notifications, mode }, history) {
   const settled = isSettled(devices) && isSettled(sessions);
-  const connection = Object.hasOwn(CONNECTION_CARD, mode) ? CONNECTION_CARD[mode] : CONNECTION_CARD.unknown;
+  const connection = sdpConnection(mode, settled);
   const summary = {
     mode: valueOr(mode),
     connection: connection.text,
@@ -867,14 +873,14 @@ function statusDashboard({ devices, sessions, notifications, mode }, history) {
   });
   cards.className = 'student-dashboard-cards';
   cards.append(
-    statusCard('연결', { text: connection.text, tone: connection.tone }, kind),
+    statusCard('SDP 서버 연결', { text: connection.text, tone: connection.tone }, kind),
     statusCard('기기', summary.devices, kind),
     statusCard('세션', summary.sessions, kind),
     statusCard('알림', summary.alerts, kind),
   );
   section.append(
     cards,
-    textNode('p', '실측은 이 PC의 앱이 방금 받은 결과이며, 조회 실패도 실측 결과입니다. 예제 자료(demo)는 실제 값이 아닙니다. 연결 없음·조회 실패·확인 불가는 0건이나 정상이 아닙니다.', 'muted'),
+    textNode('p', '실측은 이 PC의 앱이 방금 받은 결과이며, 조회 실패도 실측 결과입니다. 예제 자료(demo)는 실제 값이 아닙니다. SDP 미연결·조회 실패·확인 불가는 0건이나 정상이 아닙니다.', 'muted'),
     historyTable(history.list()),
   );
   return section;
@@ -893,7 +899,7 @@ function historyTable(entries) {
   table.append(styled(textNode('caption', `최근 ${entries.length}건 · 맨 위 줄이 현재 결과, 아래 줄은 과거 확인입니다`),
     { textAlign: 'left', padding: '4px 0', color: 'var(--muted)' }));
   const head = document.createElement('tr');
-  for (const name of ['확인 시각(이 PC)', '구분', '연결', '기기', '세션', '알림', '값 종류']) {
+  for (const name of ['확인 시각(이 PC)', '구분', 'SDP 서버 연결', '기기', '세션', '알림', '값 종류']) {
     const th = styled(textNode('th', name), { ...cellStyle, background: 'var(--unknown-soft)', whiteSpace: 'nowrap' });
     th.scope = 'col';
     head.append(th);
@@ -1044,16 +1050,30 @@ function eventCards({ status, mode, data, error }, seenAt) {
 // 이번 실행의 측정을 쌓고, 직전 실측과의 차이를 계산합니다. 화면을 다시 그릴 때는 조회하지 않습니다.
 const PC_STATUS_PATH = '/api/pc/status';
 const PC_STALE_MS = 60000;
-const PC_KEYS = ['cpu', 'memory', 'disk'];
-const PC_TITLES = { cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '디스크 남은 공간' };
+// 3일차: 같은 응답의 네트워크 구성·방화벽 설정·Windows 기록 건수를 더합니다. 방화벽·기록은 제공 조회가 읽기만 합니다.
+const PC_KEYS = ['cpu', 'memory', 'disk', 'network', 'firewall', 'events'];
+const PC_TITLES = {
+  cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '디스크 남은 공간',
+  network: '네트워크 구성', firewall: 'Windows 방화벽', events: 'Windows 기록 경고·오류',
+};
 const PC_UNITS = {
   cpu: '단위: %(200ms 표본 한 번)',
   memory: '단위: GB(1024³ 바이트) · 사용 / 전체',
   disk: '단위: GB(1024³ 바이트) · 앱이 있는 디스크의 여유 / 전체',
+  network: '단위: 개 · 외부 네트워크 인터페이스 수와 IPv4 구성 수',
+  firewall: '범위: Domain·Private·Public 프로필의 켜짐/꺼짐',
+  events: '단위: 건 · 범위: System·Application 최근 24시간, 최대 5,000건',
 };
+const PC_NOTES = {
+  network: '로컬 구성 요약이며 인터넷·SDP 연결을 확인한 결과가 아닙니다.',
+  firewall: '설정을 읽기만 하며 바꾸지 않습니다. 켜져 있어도 안전 판정이 아닙니다.',
+  events: '경고·오류 건수는 침해나 공격 탐지 결과가 아닙니다. 기록 본문은 읽지 않습니다.',
+};
+const FIREWALL_PROFILES = ['Domain', 'Private', 'Public'];
+const pcCount = (n) => Number.isSafeInteger(n) && n >= 0;
 // 제공 서버가 돌려주는 확인 불가 이유입니다. 원래 값은 괄호로 함께 적습니다.
 const PC_REASONS = {
-  permission_denied: '읽기 권한 없음(permission_denied)',
+  permission_denied: '읽기 권한 없음(permission_denied) · 관리자 권한으로 바꾸지 않음',
   timeout: '조회 시간 초과(timeout)',
   cancelled: '조회 취소(cancelled)',
   unsupported: '이 운영체제에서 조회하지 않음(unsupported)',
@@ -1070,6 +1090,22 @@ function pcMetric(key, metric) {
   if (metric && metric.state === 'ok') {
     if (key === 'cpu' && nonNegative(metric.usagePercent) && metric.usagePercent <= 100) {
       return { ok: true, value: metric.usagePercent, text: `${metric.usagePercent.toFixed(1)}% 사용` };
+    }
+    if (key === 'network' && pcCount(metric.interfaceCount) && pcCount(metric.ipv4Count)) {
+      return { ok: true, value: { interfaces: metric.interfaceCount, ipv4: metric.ipv4Count }, text: `인터페이스 ${metric.interfaceCount}개 · IPv4 구성 ${metric.ipv4Count}개` };
+    }
+    if (key === 'firewall' && Array.isArray(metric.profiles)
+      && FIREWALL_PROFILES.every((name) => metric.profiles.filter((p) => p && p.name === name && typeof p.enabled === 'boolean').length === 1)) {
+      const value = Object.fromEntries(FIREWALL_PROFILES.map((name) => [name, metric.profiles.find((p) => p.name === name).enabled]));
+      return { ok: true, value, text: FIREWALL_PROFILES.map((name) => `${name} ${value[name] ? '켜짐' : '꺼짐'}`).join(' · ') };
+    }
+    if (key === 'events' && pcCount(metric.warningCount) && pcCount(metric.errorCount) && metric.warningCount + metric.errorCount <= 5000
+      && typeof metric.truncated === 'boolean') {
+      return { ok: true, value: { warning: metric.warningCount, error: metric.errorCount },
+        text: `경고 ${metric.warningCount}건 · 오류 ${metric.errorCount}건${metric.truncated ? ' (일부 집계: 최대 5,000건)' : ''}` };
+    }
+    if (key === 'network' || key === 'firewall' || key === 'events') {
+      return { ok: false, text: '확인 불가', reason: '응답 값이나 단위를 확인할 수 없음' };
     }
     const total = metric.totalBytes;
     const part = key === 'memory' ? metric.usedBytes : metric.freeBytes;
@@ -1125,6 +1161,20 @@ function signed(n, digits) {
 // 같은 항목을 둘 다 실제로 읽었을 때만 차이를 계산합니다. 하나라도 확인 불가면 비교 불가입니다.
 function pcDelta(key, now, before) {
   if (!now.ok || !before.ok) return `${PC_TITLES[key]} 비교 불가(확인 불가 값)`;
+  if (key === 'network') {
+    const parts = [['인터페이스', now.value.interfaces - before.value.interfaces], ['IPv4 구성', now.value.ipv4 - before.value.ipv4]]
+      .filter(([, d]) => d !== 0).map(([name, d]) => `${name} ${d > 0 ? '+' : '−'}${Math.abs(d)}개`);
+    return parts.length ? `네트워크 ${parts.join(', ')}` : '네트워크 변화 없음';
+  }
+  if (key === 'firewall') {
+    const changed = FIREWALL_PROFILES.filter((name) => now.value[name] !== before.value[name])
+      .map((name) => `${name} ${now.value[name] ? '꺼짐→켜짐' : '켜짐→꺼짐'}`);
+    return changed.length ? `방화벽 ${changed.join(', ')}` : '방화벽 변화 없음';
+  }
+  if (key === 'events') {
+    const part = (name, d) => (d === 0 ? `${name} 변화 없음` : `${name} ${d > 0 ? '+' : '−'}${Math.abs(d)}건`);
+    return `기록 ${part('경고', now.value.warning - before.value.warning)}, ${part('오류', now.value.error - before.value.error)}`;
+  }
   if (key === 'cpu') {
     const d = signed(now.value - before.value, 1);
     return d ? `CPU ${d}%p` : 'CPU 변화 0.1%p 미만';
@@ -1165,6 +1215,7 @@ function pcLatestCards(latest) {
     }
     const card = statusCard(PC_TITLES[key], summary, kind);
     card.append(styled(textNode('p', PC_UNITS[key], 'muted'), { margin: '0', fontSize: '0.75rem' }));
+    if (PC_NOTES[key]) card.append(styled(textNode('p', PC_NOTES[key], 'muted'), { margin: '0', fontSize: '0.75rem' }));
     cards.append(card);
   }
   return cards;
@@ -1183,7 +1234,7 @@ function pcHistoryTable(entries) {
   table.append(styled(textNode('caption', `최근 ${entries.length}회 · 맨 위 줄이 가장 최근 측정, 아래 줄은 과거 측정입니다`),
     { textAlign: 'left', padding: '4px 0', color: 'var(--muted)' }));
   const head = document.createElement('tr');
-  for (const name of ['잰 시각(이 PC)', '값 종류', 'CPU 사용률(%)', '메모리 사용량(GB)', '디스크 남은 공간(GB)', '직전 실측 대비']) {
+  for (const name of ['잰 시각(이 PC)', '값 종류', 'CPU 사용률(%)', '메모리 사용량(GB)', '디스크 남은 공간(GB)', '네트워크 구성(개)', 'Windows 방화벽', 'Windows 기록 경고·오류(건)', '직전 실측 대비']) {
     const th = styled(textNode('th', name), { ...cellStyle, background: 'var(--unknown-soft)', whiteSpace: 'nowrap' });
     th.scope = 'col';
     head.append(th);
@@ -1210,13 +1261,14 @@ function pcHistoryTable(entries) {
   return block;
 }
 
-function pcStatusSection(history, measure) {
+function pcStatusSection(history, measure, sdp) {
   const section = document.createElement('section');
   section.className = 'student-dashboard';
   section.setAttribute('aria-label', '내 PC 측정 추이 비교');
   section.append(
     textNode('h3', '내 PC 측정 추이 비교'),
-    textNode('p', '제공 기능: CPU·메모리·디스크 값은 시작 틀의 제공 조회(/api/pc/status)가 일반 권한으로 읽은 실측입니다. 학생이 만든 부분: 측정 기록 쌓기와 직전 실측 대비 차이 계산입니다.', 'muted'),
+    textNode('p', '제공 기능: CPU·메모리·디스크·네트워크 구성·방화벽 설정·Windows 기록 건수는 시작 틀의 제공 조회(/api/pc/status)가 일반 권한으로 읽기만 한 실측입니다. 학생이 만든 부분: 측정 기록 쌓기와 직전 실측 대비 차이 계산입니다.', 'muted'),
+    textNode('p', `SDP 서버 연결: ${sdp.text} · 아래 PC 조회 결과는 SDP 서버 연결과 별개이며, PC 조회가 성공해도 SDP에 연결됐다는 뜻이 아닙니다.`, `state state-${sdp.tone}`),
   );
   const entries = history.list();
   const latest = entries[0] || null;
@@ -1338,7 +1390,7 @@ export function createStudentView({ api, onChange } = {}) {
       }
       root.append(
         statusDashboard({ devices, sessions, notifications, mode }, statusHistory),
-        pcStatusSection(pcHistory, measurePc),
+        pcStatusSection(pcHistory, measurePc, sdpConnection(mode, isSettled(devices) && isSettled(sessions))),
         notificationList(notifications),
         statusResource('기기', '기기 목록', devices, '등록된 기기가 없음: 조회는 성공했고 내 이름으로 등록된 기기가 0개입니다.', deviceRow),
         statusResource('세션', '현재 세션', sessions, '현재 연결 없음: 조회는 성공했고 지금 검증된 연결이 없습니다.', sessionRow),
