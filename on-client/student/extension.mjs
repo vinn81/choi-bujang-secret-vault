@@ -833,6 +833,17 @@ function valueKind(settled, mode, at) {
   return { text: `실측 · 이 PC · ${clockText(at)}`, className: 'tag' };
 }
 
+// 오류 코드(ENGINE_NOT_CONNECTED 등)는 밑줄 뒤에서 줄이 바뀌도록 줄바꿈 후보(<wbr>)를 넣습니다. 글자는 textContent 로만 넣습니다.
+function breakableText(tag, text, className) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  String(text).split('_').forEach((part, index, parts) => {
+    node.append(document.createTextNode(index < parts.length - 1 ? `${part}_` : part));
+    if (index < parts.length - 1) node.append(document.createElement('wbr'));
+  });
+  return node;
+}
+
 function statusCard(title, summary, kind) {
   const card = styled(document.createElement('li'), {
     display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px',
@@ -841,8 +852,9 @@ function statusCard(title, summary, kind) {
   card.className = 'student-dashboard-card';
   card.append(
     styled(textNode('h4', title), { margin: '0', fontSize: '0.85rem', color: 'var(--muted)' }),
-    // 4일차: 처음 보는 사람도 값을 먼저 읽도록 핵심 값 글자를 조금 키웁니다. 상태 색·글자 구분은 그대로입니다.
-    styled(textNode('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', fontSize: '1.1rem', overflowWrap: 'anywhere' }),
+    // 4일차: 처음 보는 사람도 값을 먼저 읽도록 짧은 핵심 값은 글자를 조금 키웁니다. 오류 코드처럼 긴 값은 좁은 카드에서
+    // 괄호만 다음 줄로 떨어지지 않게 기본 크기로 둡니다. 상태 색·글자 구분은 그대로입니다.
+    styled(breakableText('p', summary.text, `state state-${summary.tone}`), { fontWeight: '600', fontSize: summary.text.length > 20 ? '1rem' : '1.1rem', wordBreak: 'keep-all', overflowWrap: 'anywhere' }),
     styled(textNode('p', kind.text, kind.className), { margin: '0', alignSelf: 'flex-start', fontSize: '0.75rem' }),
   );
   return card;
