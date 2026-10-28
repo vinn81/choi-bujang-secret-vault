@@ -1,4 +1,5 @@
 {
   "schema": "alekov.student-appearance.v1",
+  "appName": "헤임달",
   "dashboardPreset": "student-first"
 }

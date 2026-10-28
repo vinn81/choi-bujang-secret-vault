@@ -8,13 +8,15 @@
 |---|---|
 | Windows PC, 일반 사용자 PowerShell | 관리자 권한 창은 쓰지 않습니다. |
 | Node.js 22~24 (권장 24.19.0) | PowerShell에서 `node --version` → `v22`~`v24`로 시작하면 됩니다. 없으면 https://nodejs.org 에서 설치하고 PowerShell 창을 새로 엽니다. |
-| 헤임달 코드 | 둘 중 하나: ① Git이 있고 저장소 접근 권한이 있으면 `git clone https://github.com/vinn81/choi-bujang-secret-vault.git` ② 받은 ZIP을 풉니다. 저장소가 비공개라 ①이 안 되면 주인에게 ZIP을 받으세요. |
+| 헤임달 코드 | 공개 저장소 https://github.com/vinn81/choi-bujang-secret-vault 에서 둘 중 하나: ① Git이 있으면 `git clone https://github.com/vinn81/choi-bujang-secret-vault.git` ② 저장소 화면의 「Code → Download ZIP」으로 받아 압축을 풉니다. |
 
 이미 있는 폴더에 덮어쓰지 말고 새 폴더(예: `C:\헤임달-시험`)에 받습니다.
 
 ## 1. 앱 폴더에서 PowerShell 열기
 
-1. 파일 탐색기에서 받은 폴더 안의 `on-client` 폴더를 엽니다.
+1. 파일 탐색기에서 `on-client` 폴더를 엽니다. 받은 폴더 안에 저장소 폴더가 한 겹 더 있습니다.
+   - ①로 받았으면: `C:\헤임달-시험\choi-bujang-secret-vault\on-client`
+   - ②로 받았으면: `C:\헤임달-시험\choi-bujang-secret-vault-main\on-client` (압축을 푼 방법에 따라 같은 이름 폴더가 한 겹 더 있을 수 있습니다. `on-client`가 보일 때까지 들어갑니다.)
 2. 주소 표시줄에 `powershell`을 입력하고 Enter를 누릅니다.
 3. 맞는 자리인지 확인합니다. `True`가 나와야 합니다.
 
@@ -38,6 +40,7 @@ npm.cmd run check
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 ```
 
+- 「케셰브」는 시작 틀의 기본 이름이며, PowerShell 출력에는 이 이름이 나옵니다. 화면 맨 위 이름은 「헤임달」입니다. 같은 앱입니다.
 - 정상이면 마지막 부분에 `케셰브가 켜졌습니다. 브라우저에서 http://127.0.0.1:5189/ 을 여세요.`와 `끄려면 이 창에서 Ctrl+C 를 누르세요.`가 나옵니다. 앞쪽에 계정 연결 준비·Node 버전 참고 줄이 함께 나올 수 있으며 그대로 진행합니다.
 - `-ExecutionPolicy Bypass`는 이번 한 번에만 적용되고 PC 설정을 바꾸지 않습니다.
 - 이 PowerShell 창은 앱이 켜져 있는 동안 닫지 않습니다.
@@ -48,6 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 
 | 볼 곳 | 정상 모습 |
 |---|---|
+| 화면 맨 위 | 앱 이름 「헤임달」, 상태 「연결 없음」(아래 「SDP 미연결」과 같은 뜻) |
 | 보호 현황 첫 학생 칸 | 「헤임달 핵심 기능 3가지」 안내 |
 | 「학생 상태·알림 표시」 맨 위 | 「SDP 서버 연결 · SDP 미연결(disconnected)」. 회사 시스템 연결 설정이 없는 PC에서는 이것이 정상입니다. 기기·세션 「조회 실패 (ENGINE_NOT_CONNECTED)」도 같은 이유입니다. |
 | 「내 PC 측정 추이 비교」 | 「조회」를 누르면 잠깐 「새로 읽는 중…」 뒤 이 PC의 CPU·메모리·디스크·네트워크·방화벽·Windows 기록 건수가 `실측 · 이 PC · 시각`과 함께 나옵니다. 예시: 「실측 6/6」(예시 값) |
@@ -74,5 +78,12 @@ AI 연결·계정 승인은 이 안내 범위가 아닙니다. 누르지 않아�
 | 「조회하지 못한 항목」(앱 화면) | 그 항목을 읽지 못함 | 상자에 적힌 「다음에 할 일」대로. 관리자 권한으로 바꾸지 않습니다 |
 
 여기에 없는 곳에서 막히면 **막힌 단계 번호, 화면이나 PowerShell에 나온 문구 그대로, Windows·Node 버전**을 적어 주인에게 알려 주세요. 비밀번호·토큰·열쇠는 적지 않습니다.
+
+## 이 안내로 따라 해 본 기록
+
+| 언제·누가 | 환경 | 결과 |
+|---|---|---|
+| 2026-10-28, 수업용 AI 작업 환경의 보조 시험(다른 사람의 실제 시험 아님) | Linux, Node v22.22.0, 새 폴더에 새로 clone. PowerShell이 없어 1번 `Test-Path`와 3번 실행 도구는 같은 일을 하는 명령으로 바꿔 실행 | 준비물·1~5번 끝까지 진행. 처음 보는 사람이 헷갈릴 곳 두 가지(폴더가 한 겹 더 있음, 화면·출력의 이름 「케셰브」)를 찾아 이 안내와 꾸밈 파일(`appName: "헤임달"`)에 반영 |
+| 다른 사람 또는 다른 폴더·사용자 계정에서의 Windows 실제 시험 | — | 미확인 |
 
 더 자세한 설명(구성도, 오류 코드 전체, 확인 순서)은 [STUDENT_RUNBOOK.md](STUDENT_RUNBOOK.md)에 있습니다.
