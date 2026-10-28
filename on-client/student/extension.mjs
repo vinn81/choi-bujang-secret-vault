@@ -1039,36 +1039,227 @@ function eventCards({ status, mode, data, error }, seenAt) {
   return section;
 }
 
-// 총공세 2일차: 「내 PC 상태」 자리입니다. 시작 틀 0.2.14에는 CPU·메모리·디스크를 읽는 제공 기능이 없고,
-// 브라우저의 코어 수·저장소 할당량은 사용률·남은 공간이 아니므로 대신 쓰지 않습니다. 제공 기능을 받으면 실제 값으로 바꿉니다.
-const PC_STATUS_REASON = '이 시작 틀(0.2.14)에 \'내 PC 상태\' 제공 기능이 없어 읽지 않음';
-const PC_STATUS_ITEMS = [
-  ['CPU 사용률', '%(퍼센트)'],
-  ['메모리 사용량', 'GB(사용량 / 전체)'],
-  ['디스크 남은 공간', 'GB'],
-];
+// 총공세 2일차: 「내 PC 측정 추이 비교」입니다. CPU·메모리·디스크 값은 시작 틀 0.2.21의 제공 경로 /api/pc/status 가
+// 일반 권한으로 읽은 실측을 그대로 쓰고 다시 구현하지 않습니다. 학생 코드는 사용자가 버튼을 누를 때만 한 번 조회해
+// 이번 실행의 측정을 쌓고, 직전 실측과의 차이를 계산합니다. 화면을 다시 그릴 때는 조회하지 않습니다.
+const PC_STATUS_PATH = '/api/pc/status';
+const PC_STALE_MS = 60000;
+const PC_KEYS = ['cpu', 'memory', 'disk'];
+const PC_TITLES = { cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '디스크 남은 공간' };
+const PC_UNITS = {
+  cpu: '단위: %(200ms 표본 한 번)',
+  memory: '단위: GB(1024³ 바이트) · 사용 / 전체',
+  disk: '단위: GB(1024³ 바이트) · 앱이 있는 디스크의 여유 / 전체',
+};
+// 제공 서버가 돌려주는 확인 불가 이유입니다. 원래 값은 괄호로 함께 적습니다.
+const PC_REASONS = {
+  permission_denied: '읽기 권한 없음(permission_denied)',
+  timeout: '조회 시간 초과(timeout)',
+  cancelled: '조회 취소(cancelled)',
+  unsupported: '이 운영체제에서 조회하지 않음(unsupported)',
+  invalid_sample: 'CPU 표본을 확인할 수 없음(invalid_sample)',
+  invalid_response: '응답 값을 확인할 수 없음(invalid_response)',
+  query_failed: '조회 실패(query_failed)',
+};
+const GIB = 1024 ** 3;
+const gbText = (bytes) => (bytes / GIB).toFixed(1);
+const nonNegative = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
 
-function pcStatusSection() {
-  const section = document.createElement('section');
-  section.className = 'student-dashboard';
-  section.setAttribute('aria-label', '내 PC 상태');
-  section.append(textNode('h3', '내 PC 상태'));
+// 항목 하나를 비교용 숫자와 표시 글자로 바꿉니다. 값이나 단위를 확인할 수 없으면 확인 불가와 이유입니다.
+function pcMetric(key, metric) {
+  if (metric && metric.state === 'ok') {
+    if (key === 'cpu' && nonNegative(metric.usagePercent) && metric.usagePercent <= 100) {
+      return { ok: true, value: metric.usagePercent, text: `${metric.usagePercent.toFixed(1)}% 사용` };
+    }
+    const total = metric.totalBytes;
+    const part = key === 'memory' ? metric.usedBytes : metric.freeBytes;
+    if (nonNegative(total) && total > 0 && nonNegative(part) && part <= total) {
+      return { ok: true, value: part, text: `${gbText(part)} GB ${key === 'memory' ? '사용' : '여유'} / 전체 ${gbText(total)} GB` };
+    }
+    return { ok: false, text: '확인 불가', reason: '응답 값이나 단위를 확인할 수 없음' };
+  }
+  const reason = metric && Object.hasOwn(PC_REASONS, metric.reason) ? PC_REASONS[metric.reason] : '응답 값이나 단위를 확인할 수 없음';
+  return { ok: false, text: '확인 불가', reason };
+}
+
+// 조회 결과 한 번을 기록 한 줄로 바꿉니다. 응답이 성공해도 항목마다 값을 읽었는지는 따로 봅니다.
+function pcMeasurement(result, requestedAt, receivedAt) {
+  if (!result || result.ok !== true) {
+    const code = safeCode(result && result.error && result.error.code);
+    if (code === 'NOT_ALLOWED') {
+      return { kind: 'unsupported', requestedAt, note: '이 앱 판의 학생 계약에서는 내 PC 값을 읽을 수 없습니다(NOT_ALLOWED). 제공 「내 PC 상태」 카드를 보세요.' };
+    }
+    return { kind: 'failed', requestedAt, note: `조회 실패 (${code}) · 앱이 실행 중인지 확인한 뒤 버튼을 다시 누르세요.` };
+  }
+  const data = result.data;
+  const measured = data && typeof data.measuredAt === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/u.test(data.measuredAt) ? Date.parse(data.measuredAt) : NaN;
+  if (!data || data.schema !== 'aleph.on.pc-status.v1' || data.source !== 'local-pc' || !Number.isFinite(measured)) {
+    return { kind: 'failed', requestedAt, note: '응답 형식을 확인할 수 없습니다(확인 불가). 정상으로 판단하지 마세요.' };
+  }
+  if (Math.abs(receivedAt.getTime() - measured) > PC_STALE_MS) {
+    return { kind: 'stale', requestedAt, measuredAt: new Date(measured), note: '잰 시각이 받은 시각과 60초 넘게 달라 오래된 값으로 보고 쓰지 않습니다(확인 불가).' };
+  }
+  const metrics = {};
+  for (const key of PC_KEYS) metrics[key] = pcMetric(key, data.metrics && data.metrics[key]);
+  return { kind: 'measured', requestedAt, measuredAt: new Date(measured), metrics };
+}
+
+// 이번 실행의 측정 기록입니다. 맨 앞이 가장 최근이며 최대 10회입니다. 브라우저 메모리에만 있습니다.
+function createPcHistory(limit = 10) {
+  const entries = [];
+  let pending = false;
+  return {
+    add(entry) { entries.unshift(entry); if (entries.length > limit) entries.pop(); },
+    list: () => entries,
+    get pending() { return pending; },
+    set pending(value) { pending = value === true; },
+  };
+}
+
+function signed(n, digits) {
+  const fixed = Math.abs(n).toFixed(digits);
+  if (Number(fixed) === 0) return null;
+  return `${n > 0 ? '+' : '−'}${fixed}`;
+}
+
+// 같은 항목을 둘 다 실제로 읽었을 때만 차이를 계산합니다. 하나라도 확인 불가면 비교 불가입니다.
+function pcDelta(key, now, before) {
+  if (!now.ok || !before.ok) return `${PC_TITLES[key]} 비교 불가(확인 불가 값)`;
+  if (key === 'cpu') {
+    const d = signed(now.value - before.value, 1);
+    return d ? `CPU ${d}%p` : 'CPU 변화 0.1%p 미만';
+  }
+  const d = signed((now.value - before.value) / GIB, 1);
+  const name = key === 'memory' ? '메모리 사용' : '디스크 여유';
+  return d ? `${name} ${d} GB` : `${name} 변화 0.1 GB 미만`;
+}
+
+function pcCompareText(entry, older) {
+  if (entry.kind !== 'measured') return '비교하지 않음(이번 회차 값 없음)';
+  const before = older.find((row) => row.kind === 'measured');
+  if (!before) return '첫 실측 · 비교 대상 없음';
+  return `직전 실측 ${clockText(before.measuredAt)} 대비: ${PC_KEYS.map((key) => pcDelta(key, entry.metrics[key], before.metrics[key])).join(' · ')}`;
+}
+
+const PC_KIND_TEXT = { measured: '실측 · 이 PC', failed: '조회 실패', stale: '확인 불가(오래된 값)', unsupported: '지원 없음(NOT_ALLOWED)' };
+
+function pcLatestCards(latest) {
   const cards = styled(document.createElement('ul'), {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px',
     listStyle: 'none', padding: '0', margin: '8px 0',
   });
   cards.className = 'student-dashboard-cards';
-  for (const [title, unit] of PC_STATUS_ITEMS) {
-    const card = statusCard(title, { text: '확인 불가', tone: 'empty' }, { text: `이유: ${PC_STATUS_REASON}`, className: 'muted' });
-    card.append(styled(textNode('p', `단위: ${unit} · 잰 시각: 없음(측정하지 않음)`, 'muted'), { margin: '0', fontSize: '0.75rem' }));
+  for (const key of PC_KEYS) {
+    let summary;
+    let kind;
+    if (!latest) {
+      summary = { text: '아직 측정하지 않음', tone: 'empty' };
+      kind = { text: '아직 값 없음', className: 'muted' };
+    } else if (latest.kind === 'measured') {
+      const metric = latest.metrics[key];
+      summary = metric.ok ? { text: metric.text, tone: 'ok' } : { text: `확인 불가 · 이유: ${metric.reason}`, tone: 'empty' };
+      kind = { text: `실측 · 이 PC · ${clockText(latest.measuredAt)}`, className: 'tag' };
+    } else {
+      summary = { text: `확인 불가 · 이유: ${PC_KIND_TEXT[latest.kind]}`, tone: latest.kind === 'failed' ? 'error' : 'empty' };
+      kind = { text: `요청 ${clockText(latest.requestedAt)} · 잰 값 없음`, className: 'muted' };
+    }
+    const card = statusCard(PC_TITLES[key], summary, kind);
+    card.append(styled(textNode('p', PC_UNITS[key], 'muted'), { margin: '0', fontSize: '0.75rem' }));
     cards.append(card);
   }
-  section.append(cards, textNode('p', '"확인 불가"는 0이나 정상이 아닙니다. 예시 값이나 다른 값(브라우저의 코어 수·저장소 할당량 등)으로 대신 채우지 않습니다.', 'muted'));
+  return cards;
+}
+
+function pcHistoryTable(entries) {
+  const block = document.createElement('div');
+  block.append(textNode('h4', '추이: 이번 실행의 내 PC 측정 기록'));
+  if (entries.length === 0) {
+    block.append(textNode('p', '아직 측정 기록이 없습니다. 「내 PC 측정 기록 추가」를 누르면 첫 줄이 생깁니다.', 'muted'));
+    return block;
+  }
+  const cellStyle = { padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'left', verticalAlign: 'top', overflowWrap: 'anywhere' };
+  const table = styled(document.createElement('table'), { width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' });
+  table.className = 'student-pc-history';
+  table.append(styled(textNode('caption', `최근 ${entries.length}회 · 맨 위 줄이 가장 최근 측정, 아래 줄은 과거 측정입니다`),
+    { textAlign: 'left', padding: '4px 0', color: 'var(--muted)' }));
+  const head = document.createElement('tr');
+  for (const name of ['잰 시각(이 PC)', '값 종류', 'CPU 사용률(%)', '메모리 사용량(GB)', '디스크 남은 공간(GB)', '직전 실측 대비']) {
+    const th = styled(textNode('th', name), { ...cellStyle, background: 'var(--unknown-soft)', whiteSpace: 'nowrap' });
+    th.scope = 'col';
+    head.append(th);
+  }
+  const thead = document.createElement('thead');
+  thead.append(head);
+  const tbody = document.createElement('tbody');
+  entries.forEach((entry, index) => {
+    const row = styled(document.createElement('tr'), index === 0 ? { background: 'var(--accent-soft)' } : { color: 'var(--muted)' });
+    const time = entry.measuredAt ? clockText(entry.measuredAt) : `없음(요청 ${clockText(entry.requestedAt)})`;
+    const values = entry.kind === 'measured'
+      ? PC_KEYS.map((key) => (entry.metrics[key].ok ? entry.metrics[key].text : `확인 불가 · ${entry.metrics[key].reason}`))
+      : PC_KEYS.map(() => '확인 불가');
+    const kindText = entry.kind === 'measured' ? PC_KIND_TEXT.measured : `${PC_KIND_TEXT[entry.kind]} · ${entry.note}`;
+    for (const text of [time, kindText, ...values, pcCompareText(entry, entries.slice(index + 1))]) {
+      row.append(styled(textNode('td', text), cellStyle));
+    }
+    tbody.append(row);
+  });
+  table.append(thead, tbody);
+  const scroller = styled(document.createElement('div'), { overflowX: 'auto' });
+  scroller.append(table);
+  block.append(scroller);
+  return block;
+}
+
+function pcStatusSection(history, measure) {
+  const section = document.createElement('section');
+  section.className = 'student-dashboard';
+  section.setAttribute('aria-label', '내 PC 측정 추이 비교');
+  section.append(
+    textNode('h3', '내 PC 측정 추이 비교'),
+    textNode('p', '제공 기능: CPU·메모리·디스크 값은 시작 틀의 제공 조회(/api/pc/status)가 일반 권한으로 읽은 실측입니다. 학생이 만든 부분: 측정 기록 쌓기와 직전 실측 대비 차이 계산입니다.', 'muted'),
+  );
+  const entries = history.list();
+  const latest = entries[0] || null;
+  const button = textNode('button', history.pending ? '측정 중…' : '내 PC 측정 기록 추가', 'btn');
+  button.type = 'button';
+  button.setAttribute('data-student-pc-measure', '');
+  if (measure) {
+    button.setAttribute('aria-disabled', history.pending ? 'true' : 'false');
+    button.addEventListener('click', measure);
+  } else {
+    button.disabled = true;
+  }
+  const result = textNode('p', !measure
+    ? '확인 불가: 이 앱 판은 학생 코드에 조회 기능(api)을 넘겨 주지 않습니다. 제공 「내 PC 상태」 카드를 보세요.'
+    : history.pending ? '이 PC에서 읽는 중… 아직 이번 측정 값이 없습니다.'
+      : latest ? `${clockText(latest.requestedAt)}에 누른 측정: ${latest.kind === 'measured' ? '실측을 받았습니다.' : `${PC_KIND_TEXT[latest.kind]} · ${latest.note}`}`
+        : '아직 측정하지 않았습니다. 버튼을 누를 때만 한 번 읽습니다.', 'muted');
+  result.setAttribute('role', 'status');
+  section.append(
+    button, result, pcLatestCards(latest), pcHistoryTable(entries),
+    textNode('p', '"확인 불가"는 0이나 정상이 아닙니다. 예시 값으로 채우지 않으며, 값을 읽지 못한 항목은 비교하지 않습니다. 자동으로 다시 읽지 않고, 기록은 브라우저 메모리에만 있어 새로고침하면 사라집니다(파일·서버·AI로 보내지 않음). 예제 모드(-Demo)에서도 이 칸의 값은 이 PC 실측입니다.', 'muted'),
+  );
   return section;
 }
 
-export function createStudentView() {
+export function createStudentView({ api, onChange } = {}) {
   const statusHistory = createStatusHistory();
+  const pcHistory = createPcHistory();
+  const redraw = typeof onChange === 'function' ? onChange : () => {};
+  // 버튼을 누를 때만 제공 경로를 한 번 읽습니다. 진행 중에는 다시 누르기를 막고, 다시 그린 뒤 버튼에 초점을 되돌립니다.
+  const measurePc = api && typeof api.get === 'function' ? async () => {
+    if (pcHistory.pending) return;
+    pcHistory.pending = true;
+    const requestedAt = new Date();
+    redraw();
+    let result = null;
+    try { result = await api.get(PC_STATUS_PATH); } catch { result = null; }
+    pcHistory.add(pcMeasurement(result, requestedAt, new Date()));
+    pcHistory.pending = false;
+    redraw();
+    const again = document.querySelector('[data-student-pc-measure]');
+    if (again) again.focus();
+  } : null;
   // 보안 기록을 받은 시각입니다. 불러오는 중이 되면 지우고, 새 결과를 처음 그릴 때 한 번만 정합니다.
   let eventsSeenAt = null;
   return {
@@ -1147,7 +1338,7 @@ export function createStudentView() {
       }
       root.append(
         statusDashboard({ devices, sessions, notifications, mode }, statusHistory),
-        pcStatusSection(),
+        pcStatusSection(pcHistory, measurePc),
         notificationList(notifications),
         statusResource('기기', '기기 목록', devices, '등록된 기기가 없음: 조회는 성공했고 내 이름으로 등록된 기기가 0개입니다.', deviceRow),
         statusResource('세션', '현재 세션', sessions, '현재 연결 없음: 조회는 성공했고 지금 검증된 연결이 없습니다.', sessionRow),
